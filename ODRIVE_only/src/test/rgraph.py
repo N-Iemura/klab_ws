@@ -15,7 +15,7 @@ matplotlib.rcParams['axes.ymargin'] = 0
 
 # Read the CSV data
 # data = pd.read_csv('/home/naga/klab_ws/src/test/csv/l1_-1.3_-10_1.csv',encoding = 'UTF8')
-data = pd.read_csv('/home/naga/klab_ws/src/test/s1/s1_1_2-12-6.csv',encoding = 'UTF8')
+data = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/src/test/s1/s1_1_2-12-6.csv',encoding = 'UTF8')
 t = data['time']
 # plt.plot(t.to_numpy(),data['Velocity_r100'].to_numpy(),label='R100')
 # plt.plot(t.to_numpy(),data['Velocity_maxon'].to_numpy(),label='R100')
