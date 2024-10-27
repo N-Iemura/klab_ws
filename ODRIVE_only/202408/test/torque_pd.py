@@ -13,9 +13,9 @@ VELOCITY_CONTROL = 2
 
 # Find two ODrives
 # #maxon
-# odrv0 = odrive.find_any(serial_number='385B34743539')
+odrv1 = odrive.find_any(serial_number='385B34743539')
 # #R100
-odrv1 = odrive.find_any(serial_number='385E344A3539')
+# odrv1 = odrive.find_any(serial_number='385E344A3539')
 
 # odrv2 = odrive.find_any(serial_number='3849346F3539')
 
@@ -87,7 +87,7 @@ try:
         # Current torque
         current_pos = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        desired_pos = 0.5
+        desired_pos = 10*math.sin(elapsed_time)
         print(f"Elapsed time for code block 2: {time_diff} seconds")
 
         # Calculate the error
