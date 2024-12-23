@@ -55,6 +55,7 @@ odrv1.axis0.controller.input_torque = 0
 
 start_time = time.time()  # Get the current time
 time1 = 0
+<<<<<<< HEAD
 # ## motor with link
 # Kp0 = 200 # Proportional gain
 # Ki0 = 200  # Integral gain
@@ -70,6 +71,23 @@ Kd0 = 2 # Derivative gain
 Kp1 = 50  # Proportional gain
 Ki1 = 8 # Integral gain
 Kd1 = 2 # Derivative gain
+=======
+## motor with link
+Kp0 = 200 # Proportional gain
+Ki0 = 200  # Integral gain
+Kd0 = 5  # Derivative gain
+Kp1 = 200 # Proportional gain
+Ki1 = 200 # Integral gain
+Kd1 = 10 # Derivative gain
+
+## motor only
+# Kp0 = 2.8 # Proportional gain
+# Ki0 = 0.8  # Integral gain
+# Kd0 = 0.15 # Derivative gain
+# Kp1 = 2.5  # Proportional gain
+# Ki1 = 0.65 # Integral gain
+# Kd1 = 0.15 # Derivative gain
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
 prev_error0 = 0
 prev_error1 = 0
 prev_time = time.time()
@@ -87,8 +105,13 @@ filtered_desired_pos1 = 0
 # 指令値を格納するリスト
 ref0 = []
 ref1 = []
+<<<<<<< HEAD
 error_queue0 = deque(maxlen=5)
 error_queue1 = deque(maxlen=5)
+=======
+error_queue0 = deque(maxlen=10)
+error_queue1 = deque(maxlen=10)
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
 
 try:
     while True:
@@ -101,6 +124,7 @@ try:
         current_pos0 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0
         current_pos1 = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
+<<<<<<< HEAD
         if elapsed_time > 0:
             if elapsed_time <= 1:
                 desired_pos0 = 0
@@ -108,6 +132,15 @@ try:
             else:
                 desired_pos0 =  -0.1 * np.sin(5 * elapsed_time)
                 desired_pos1 =  -0.1 * np.sin(5 * elapsed_time)
+=======
+        if elapsed_time > 1:
+            if elapsed_time <= 5:
+                desired_pos0 = -0.1
+                desired_pos1 = -0.1
+            else:
+                desired_pos0 = -0.1 -0.1 * np.sin(5 * elapsed_time)
+                desired_pos1 = -0.1 -0.1 * np.sin(5 * elapsed_time)
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
 
             # 指令値をリストに格納
             ref0.append(desired_pos0)
@@ -127,6 +160,7 @@ try:
             error_integral1 += error1 * time_diff
 
             # 誤差の微分項の計算
+<<<<<<< HEAD
             if len(error_queue0) == 5:
                 error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (5 * time_diff)
             else:
@@ -134,13 +168,25 @@ try:
 
             if len(error_queue1) == 5:
                 error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (5 * time_diff)
+=======
+            if len(error_queue0) == 10:
+                error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (10 * time_diff)
+            else:
+                error_derivative0 = 0
+
+            if len(error_queue1) == 10:
+                error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (10 * time_diff)
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
             else:
                 error_derivative1 = 0
             
             # Calculate the new torque input
             new_torque0 = Kp0 * error0 + Kd0 * error_derivative0 + Ki0 * error_integral0
             new_torque1 = Kp1 * error1 + Kd1 * error_derivative1 + Ki1 * error_integral1
+<<<<<<< HEAD
             print(new_torque0)
+=======
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
 
             max_float32 = 3.4e38
             if new_torque0 > max_float32:
@@ -182,9 +228,14 @@ try:
         position_data_1.append(current_pos1)
 
         time_data.append(elapsed_time)
+<<<<<<< HEAD
         # print("pos0: ", current_pos0)
         # print("pos1: ", current_pos1)
 
+=======
+        print("pos0: ", current_pos0)
+        print("pos1: ", current_pos1)
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
                 
 except KeyboardInterrupt:    
     now = datetime.now()

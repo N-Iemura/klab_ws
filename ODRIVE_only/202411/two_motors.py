@@ -87,8 +87,13 @@ filtered_desired_pos1 = 0
 # 指令値を格納するリスト
 ref0 = []
 ref1 = []
+<<<<<<< HEAD
 error_queue0 = deque(maxlen=5)
 error_queue1 = deque(maxlen=5)
+=======
+error_queue0 = deque(maxlen=10)
+error_queue1 = deque(maxlen=10)
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
 
 try:
     while True:
@@ -128,6 +133,7 @@ try:
             error_integral1 += error1 * time_diff
 
             # 誤差の微分項の計算
+<<<<<<< HEAD
             if len(error_queue0) == 5:
                 error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (5 * time_diff)
             else:
@@ -135,6 +141,15 @@ try:
 
             if len(error_queue1) == 5:
                 error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (5 * time_diff)
+=======
+            if len(error_queue0) == 10:
+                error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (10 * time_diff)
+            else:
+                error_derivative0 = 0
+
+            if len(error_queue1) == 10:
+                error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (10 * time_diff)
+>>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
             else:
                 error_derivative1 = 0
             
