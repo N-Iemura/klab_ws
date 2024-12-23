@@ -114,7 +114,6 @@ try:
         
         # Set the new torque input
 
-
         # Update the previous error
         prev_error0 = error0
         prev_error1 = error1
