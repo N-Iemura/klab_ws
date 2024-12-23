@@ -114,14 +114,12 @@ try:
         time_data.append(elapsed_time)
 
         # Apply impulse position input at the specified time
-        if not loop_executed and impulse_time <= elapsed_time < impulse_time + impulse_duration:
+        if not loop_executed and impulse_time <= elapsed_time:
             odrv0.axis0.controller.input_pos += impulse_position
             odrv1.axis0.controller.input_pos += impulse_position
             loop_executed = True
         else:
             # Set the position input back to the desired position after the impulse
-            desired_pos0 = -0.1 * math.sin(5 * elapsed_time)
-            desired_pos1 = -0.1 * math.sin(5 * elapsed_time)
             odrv0.axis0.controller.input_pos = initial_position0
             odrv1.axis0.controller.input_pos = initial_position1
                 
