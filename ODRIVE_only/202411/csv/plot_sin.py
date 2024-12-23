@@ -3,11 +3,7 @@ import matplotlib.pyplot as plt
 
 
 # CSVファイルを読み込む
-<<<<<<< HEAD
 df = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/202411/csv/two_pos_-0.1_20241111_170356.csv',skiprows=2, usecols=[0,1,3,4,6], names=['time','Ref_0', 'Position_0', 'Ref_1', 'Position_1'])
-=======
-df = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/202411/csv/two_pos_-0.1_20241102_003203.csv',skiprows=2, usecols=[0,1,3,4,6], names=['time','Ref_0', 'Position_0', 'Ref_1', 'Position_1'])
->>>>>>> a808c9e21f17a88d51a2d3e8e6c15b86749493c5
 
 filtered_df = df[(df['time'] >= 0) & (df['time'] <= 20)]
 

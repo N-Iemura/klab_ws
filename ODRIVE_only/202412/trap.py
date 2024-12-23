@@ -42,12 +42,12 @@ initial_position1 = odrv1.axis0.pos_vel_mapper.pos_rel
 # initial_position2 = odrv2.axis0.pos_vel_mapper.pos_rel
 
 odrv0.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv0.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
+odrv0.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
 odrv0.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 odrv0.axis0.controller.input_torque = 0
 
 odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv1.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
+odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
 odrv1.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 odrv1.axis0.controller.input_torque = 0
 
@@ -91,7 +91,9 @@ error_queue1 = deque(maxlen=5)
 # Define impulse parameters
 impulse_time = 1.0  # Time after which to apply the impulse
 impulse_duration = 0.005  # Duration of the impulse in seconds
-impulse_position = 0.01  # Position to set during the impulse
+impulse_position = 0.1  # Position to set during the impulse
+loop_executed = False
+second_impulse_executed = False
 
 try:
     while True:
@@ -114,14 +116,25 @@ try:
         time_data.append(elapsed_time)
 
         # Apply impulse position input at the specified time
-        if not loop_executed and impulse_time <= elapsed_time:
+        if loop_executed==False and 2+impulse_time <= elapsed_time:
             odrv0.axis0.controller.input_pos += impulse_position
             odrv1.axis0.controller.input_pos += impulse_position
+            ref0.append(impulse_position)
+            ref1.append(impulse_position)
             loop_executed = True
+        elif loop_executed==True and not second_impulse_executed:
+            # Apply second impulse position input at the specified time
+            odrv0.axis0.controller.input_pos += impulse_position
+            odrv1.axis0.controller.input_pos += impulse_position
+            ref0.append(impulse_position)
+            ref1.append(impulse_position)
+            second_impulse_executed = True
         else:
             # Set the position input back to the desired position after the impulse
             odrv0.axis0.controller.input_pos = initial_position0
             odrv1.axis0.controller.input_pos = initial_position1
+            ref0.append(0)
+            ref1.append(0)
                 
 except KeyboardInterrupt:    
     now = datetime.now()
