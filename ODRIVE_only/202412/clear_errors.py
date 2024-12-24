@@ -14,5 +14,12 @@ VELOCITY_CONTROL = 2
 odrv0 = odrive.find_any(serial_number='385B34743539')
 odrv1 = odrive.find_any(serial_number='385E344A3539')
 
-odrv0.axis0.requested_state = AxisState.MOTOR_CALIBRATION
-odrv1.axis0.requested_state = AxisState.MOTOR_CALIBRATION
+# odrv0.config.brake_resistor0.resistance = 2.0
+# odrv0.config.enable_brake_resistor = True
+# odrv1.config.brake_resistor0.resistance = 2.0
+# odrv1.config.enable_brake_resistor = True
+odrv0.clear_errors()
+odrv1.clear_errors()
+
+odrv0.axis0.requested_state = AxisState.IDLE
+odrv1.axis0.requested_state = AxisState.IDLE
