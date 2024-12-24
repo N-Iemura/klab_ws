@@ -149,6 +149,5 @@ except KeyboardInterrupt:
         writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1))
 
     # Set velocity to 0 if the program is interrupted
-    odrv0.axis0.controller.input_torque = 0
-    odrv1.axis0.controller.input_torque = 0
-
+    odrv0.axis0.requested_state = AxisState.IDLE
+    odrv1.axis0.requested_state = AxisState.IDLE
