@@ -19,8 +19,6 @@ odrv0 = odrive.find_any(serial_number='385B34743539')
 # #1    
 odrv1 = odrive.find_any(serial_number='385E344A3539')
 
-# odrv2 = odrive.find_any(serial_number='3849346F3539')
-
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
 # time.sleep(7) 
 time_data = []
@@ -43,52 +41,52 @@ initial_position0 = odrv0.axis0.pos_vel_mapper.pos_rel
 initial_position1 = odrv1.axis0.pos_vel_mapper.pos_rel
 # initial_position2 = odrv2.axis0.pos_vel_mapper.pos_rel
 
-odrv0.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+odrv0.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
 odrv0.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
 odrv0.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 odrv0.axis0.controller.input_torque = 0
 
-odrv1.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
 odrv1.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
 odrv1.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 odrv1.axis0.controller.input_torque = 0
 
+odrv0.axis0.controller.config.pos_gain = 70.0
+odrv0.axis0.controller.config.vel_gain = 5
+
+odrv1.axis0.controller.config.pos_gain = 70.0
+odrv1.axis0.controller.config.vel_gain = 5
+
 start_time = time.time()  # Get the current time
 time1 = 0
-# ## motor with link
-# Kp0 = 200 # Proportional gain
-# Ki0 = 200  # Integral gain
-# Kd0 = 5  # Derivative gain
-# Kp1 = 200 # Proportional gain
-# Ki1 = 200 # Integral gain
-# Kd1 = 10 # Derivative gain
 
 ## motor only
-Kp0 = 50 # Proportional gain
-Ki0 = 8  # Integral gain
-Kd0 = 2 # Derivative gain
-Kp1 = 50  # Proportional gain
-Ki1 = 8 # Integral gain
-Kd1 = 2 # Derivative gain
+Kp0 = 400 # Proportional gain
+Ki0 = 0  # Integral gain
+Kd0 = 5 # Derivative gain
+Kp1 = 400  # Proportional gain
+Ki1 = 0 # Integral gain
+Kd1 = 5 # Derivative gain
 prev_error0 = 0
 prev_error1 = 0
 prev_time = time.time()
 error_integral0 = 0
 error_integral1 = 0
 
-# アンチワインドアップのための積分項の制限
-integral_limit = 600
-Ti = 0.5  # 時定数
-
-# ローパスフィルタの初期化
-filtered_desired_pos0 = 0
-filtered_desired_pos1 = 0
-
 # 指令値を格納するリスト
 ref0 = []
 ref1 = []
 error_queue0 = deque(maxlen=5)
 error_queue1 = deque(maxlen=5)
+
+# Define impulse parameters
+impulse_time = 1.0  # Time after which to apply the impulse
+impulse_duration = 0.005  # Duration of the impulse in seconds
+impulse_position = 0.1  # Position to set during the impulse
+loop_executed = False
+second_impulse_executed = False
+impulse_flag1 = 0
+impulse_flag2 = 0
 
 try:
     while True:
@@ -105,13 +103,22 @@ try:
             if elapsed_time <= 1:
                 desired_pos0 = 0
                 desired_pos1 = 0
-            else:
-                desired_pos0 =  -0.1 * np.sin(5 * elapsed_time)
-                desired_pos1 =  -0.1 * np.sin(5 * elapsed_time)
+            elif impulse_flag1 == 0:
+                desired_pos0 =  -0.1
+                desired_pos1 =  -0.1 
+                impulse_flag1 = 1
+            elif impulse_flag1 == 1 and impulse_flag2 == 0:
+                desired_pos0 =  -0.1
+                desired_pos1 =  -0.1
+                impulse_flag2 = 1
+            elif impulse_flag1 == 1 and impulse_flag2 == 1:
+                desired_pos0 = 0
+                desired_pos1 = 0
 
             # 指令値をリストに格納
             ref0.append(desired_pos0)
             ref1.append(desired_pos1)
+            print("desired_pos0: ", desired_pos0)
             
              
             # Calculate the error - initial_position0
@@ -140,8 +147,7 @@ try:
             # Calculate the new torque input
             new_torque0 = Kp0 * error0 + Kd0 * error_derivative0 + Ki0 * error_integral0
             new_torque1 = Kp1 * error1 + Kd1 * error_derivative1 + Ki1 * error_integral1
-            print(new_torque0)
-
+        
             max_float32 = 3.4e38
             if new_torque0 > max_float32:
                 new_torque0 = max_float32
@@ -185,7 +191,6 @@ try:
         # print("pos0: ", current_pos0)
         # print("pos1: ", current_pos1)
 
-                
 except KeyboardInterrupt:    
     now = datetime.now()
     # Format the date and time as a string
@@ -199,7 +204,5 @@ except KeyboardInterrupt:
         writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1))
 
     # Set velocity to 0 if the program is interrupted
-    # odrv0.axis0.controller.input_vel = 0
-    odrv0.axis0.controller.input_torque = 0
-    odrv1.axis0.controller.input_torque = 0
-
+    odrv0.axis0.requested_state = AxisState.IDLE
+    odrv1.axis0.requested_state = AxisState.IDLE

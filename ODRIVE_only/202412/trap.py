@@ -51,15 +51,14 @@ odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
 odrv1.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 odrv1.axis0.controller.input_torque = 0
 
+odrv0.axis0.controller.config.pos_gain = 70.0
+odrv0.axis0.controller.config.vel_gain = 5
+
+odrv1.axis0.controller.config.pos_gain = 70.0
+odrv1.axis0.controller.config.vel_gain = 5
+
 start_time = time.time()  # Get the current time
 time1 = 0
-# ## motor with link
-# Kp0 = 200 # Proportional gain
-# Ki0 = 200  # Integral gain
-# Kd0 = 5  # Derivative gain
-# Kp1 = 200 # Proportional gain
-# Ki1 = 200 # Integral gain
-# Kd1 = 10 # Derivative gain
 
 ## motor only
 Kp0 = 2.8 # Proportional gain
@@ -73,14 +72,6 @@ prev_error1 = 0
 prev_time = time.time()
 error_integral0 = 0
 error_integral1 = 0
-
-# アンチワインドアップのための積分項の制限
-integral_limit = 600
-Ti = 0.5  # 時定数
-
-# ローパスフィルタの初期化
-filtered_desired_pos0 = 0
-filtered_desired_pos1 = 0
 
 # 指令値を格納するリスト
 ref0 = []
