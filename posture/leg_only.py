@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import csv
+from datetime import datetime
 
 # Mediapipeのセットアップ
 mp_pose = mp.solutions.pose
@@ -17,7 +18,10 @@ landmark_ids = [
 ]
 
 # CSVファイルの準備
-csv_file = open('csv/leg_landmarks_by_frame.csv', mode='w', newline='')
+# 現在の日時を取得してファイル名に使用
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+csv_filename = f'csv/leg_landmarks_{timestamp}.csv'
+csv_file = open(csv_filename, mode='w', newline='')
 csv_writer = csv.writer(csv_file)
 
 # ヘッダーの作成

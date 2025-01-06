@@ -3,7 +3,7 @@ from matplotlib.animation import FuncAnimation
 import pandas as pd
 
 # CSVファイルの読み込み
-csv_file = 'csv/leg_landmarks_by_frame.csv'
+csv_file = 'csv/leg_landmarks_20241226_194253.csv'
 df = pd.read_csv(csv_file)
 
 # プロットの準備
@@ -44,6 +44,17 @@ def update(frame):
             x = coords['X'][frame]
             y = coords['Y'][frame]
             ax.scatter(x, y, label=landmark)
+    
+    # Plot LEFT side
+    left_x = [landmark_coords['LEFT_HIP']['X'][frame], landmark_coords['LEFT_KNEE']['X'][frame], landmark_coords['LEFT_ANKLE']['X'][frame]]
+    left_y = [landmark_coords['LEFT_HIP']['Y'][frame], landmark_coords['LEFT_KNEE']['Y'][frame], landmark_coords['LEFT_ANKLE']['Y'][frame]]
+    ax.plot(left_x, left_y, color='blue')
+    
+    # Plot RIGHT side
+    right_x = [landmark_coords['RIGHT_HIP']['X'][frame], landmark_coords['RIGHT_KNEE']['X'][frame], landmark_coords['RIGHT_ANKLE']['X'][frame]]
+    right_y = [landmark_coords['RIGHT_HIP']['Y'][frame], landmark_coords['RIGHT_KNEE']['Y'][frame], landmark_coords['RIGHT_ANKLE']['Y'][frame]]
+    ax.plot(right_x, right_y, color='red')
+
 
     # 凡例を表示
     ax.legend(loc='upper left')

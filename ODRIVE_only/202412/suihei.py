@@ -61,10 +61,10 @@ start_time = time.time()  # Get the current time
 time1 = 0
 
 ## motor only
-Kp0 = 100 # Proportional gain
+Kp0 = 10 # Proportional gain
 Ki0 = 0  # Integral gain
 Kd0 = 1 # Derivative gain
-Kp1 = 250  # Proportional gain
+Kp1 = 10  # Proportional gain
 Ki1 = 0 # Integral gain
 Kd1 = 1 # Derivative gain
 prev_error0 = 0
@@ -88,6 +88,16 @@ second_impulse_executed = False
 n = 10
 impulse_flags = [0] * n
 
+### leg ###
+l1=0.45
+l2=0.5
+desired_pos0 = 0.5/(2*np.pi)
+desired_pos1 = 0.7/(2*np.pi)
+print("desired_pos0: ", desired_pos0)
+fx = 0.1
+
+
+
 try:
     while True:
         # Calculate the elapsed time
@@ -100,72 +110,34 @@ try:
         current_pos1 = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
         if elapsed_time > 0:        
-            if elapsed_time <= 1:
-                desired_pos0 = 0
-                desired_pos1 = 0
-            else:
-                flag_index = 0
-                while flag_index < n:
-                    if impulse_flags[flag_index] == 0:
-                        desired_pos0 = -impulse_position
-                        desired_pos1 = -impulse_position
-                        impulse_flags[flag_index] = 1
-                        break
-                    flag_index += 1
-                else:
-                    desired_pos0 = 0
-                    desired_pos1 = 0
+            # if elapsed_time <= 1:
+            #     desired_pos0 = 0
+            #     desired_pos1 = 0
+            # else:
+            #     flag_index = 0
+            #     while flag_index < n:
+            #         if impulse_flags[flag_index] == 0:
+            #             desired_pos0 = -impulse_position
+            #             desired_pos1 = -impulse_position
+            #             impulse_flags[flag_index] = 1
+            #             break
+            #         flag_index += 1
+            #     else:
+            #         desired_pos0 = 0
+            #         desired_pos1 = 0
+            desired_pos0 = np.arcsin((-0.12-0.10637*np.cos(1*elapsed_time) + l2*np.sin(2*np.pi*desired_pos1))/l1) / (2*np.pi)
+            desired_pos1 = np.arccos((0.7 - l1*np.cos(2*np.pi*desired_pos0))/l2) / (2*np.pi)
 
             # 指令値をリストに格納
             ref0.append(desired_pos0)
             ref1.append(desired_pos1)
-            print("desired_pos0: ", desired_pos0)
             
-             
-            # Calculate the error - initial_position0
-            # 誤差の計算
-            error0 = desired_pos0 - current_pos0
-            error1 = desired_pos1 - current_pos1
-            # 誤差をデックに追加
-            error_queue0.append(error0)
-            error_queue1.append(error1)
-            # error_integral0 = max(min(error_integral0, integral_limit), -integral_limit)
-            # error_integral1 = max(min(error_integral1, integral_limit), -integral_limit)
-            error_integral0 += error0 * time_diff
-            error_integral1 += error1 * time_diff
-
-            # 誤差の微分項の計算
-            if len(error_queue0) == 5:
-                error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (5 * time_diff)
-            else:
-                error_derivative0 = 0
-
-            if len(error_queue1) == 5:
-                error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (5 * time_diff)
-            else:
-                error_derivative1 = 0
-            
-            # Calculate the new torque input
-            new_torque0 = Kp0 * error0 + Kd0 * error_derivative0 + Ki0 * error_integral0
-            new_torque1 = Kp1 * error1 + Kd1 * error_derivative1 + Ki1 * error_integral1
-        
-            max_float32 = 3.4e38
-            if new_torque0 > max_float32:
-                new_torque0 = max_float32
-            elif new_torque0 < -max_float32:    
-                new_torque0 = -max_float32
-            if new_torque1 > max_float32:
-                new_torque1 = max_float32
-            elif new_torque1 < -max_float32:
-                new_torque1 = -max_float32
+            new_torque0 = l1*np.cos(2*np.pi*desired_pos0)*fx
+            new_torque1 = -(0.7+l1*np.cos(2*np.pi*desired_pos0))/l2 * fx
             
             # Set the new torque input
             odrv0.axis0.controller.input_torque = new_torque0
             odrv1.axis0.controller.input_torque = new_torque1
-
-            # Update the previous error
-            prev_error0 = error0
-            prev_error1 = error1
 
             input_torque0.append(odrv0.axis0.controller.input_torque)
             input_torque1.append(odrv1.axis0.controller.input_torque)

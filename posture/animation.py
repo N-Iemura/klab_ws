@@ -40,6 +40,18 @@ def update(frame):
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
 
+    # Plot LEFT side
+    left_x = [landmark_coords['LEFT_HIP']['X'][frame], landmark_coords['LEFT_KNEE']['X'][frame], landmark_coords['LEFT_ANKLE']['X'][frame]]
+    left_y = [landmark_coords['LEFT_HIP']['Y'][frame], landmark_coords['LEFT_KNEE']['Y'][frame], landmark_coords['LEFT_ANKLE']['Y'][frame]]
+    left_z = [landmark_coords['LEFT_HIP']['Z'][frame], landmark_coords['LEFT_KNEE']['Z'][frame], landmark_coords['LEFT_ANKLE']['Z'][frame]]
+    ax.plot(left_x, left_y, left_z, color='blue')
+    
+    # Plot RIGHT side
+    right_x = [landmark_coords['RIGHT_HIP']['X'][frame], landmark_coords['RIGHT_KNEE']['X'][frame], landmark_coords['RIGHT_ANKLE']['X'][frame]]
+    right_y = [landmark_coords['RIGHT_HIP']['Y'][frame], landmark_coords['RIGHT_KNEE']['Y'][frame], landmark_coords['RIGHT_ANKLE']['Y'][frame]]
+    right_z = [landmark_coords['RIGHT_HIP']['Z'][frame], landmark_coords['RIGHT_KNEE']['Z'][frame], landmark_coords['RIGHT_ANKLE']['Z'][frame]]
+    ax.plot(right_x, right_y, right_z, color='red')
+
     scatter_points = []  # 凡例順序を保つためのポイントリスト
     for landmark in landmark_order:
         if landmark in landmark_coords:

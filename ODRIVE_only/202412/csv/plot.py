@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 # CSVファイルを読み込む
-df = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/202412/csv/two_pos_-0.1_20241226_171241.csv',skiprows=2, usecols=[0,1,3,4,6], names=['time','Ref_0', 'Position_0', 'Ref_1', 'Position_1'])
+df = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/202412/csv/two_pos_-0.1_20250106_174255.csv',skiprows=2, usecols=[0,1,3,4,6], names=['time','Ref_0', 'Position_0', 'Ref_1', 'Position_1'])
 
 filtered_df = df[(df['time'] >= 0) & (df['time'] <= 4)]
 
@@ -24,7 +24,7 @@ plt.legend(loc='upper left')
 # グラフのタイトルと軸ラベルを設定する
 plt.title('Time vs Position and Reference')
 plt.xlabel('Time [s]')
-plt.ylabel('Position [rpm]')
+plt.ylabel('Position [turns]')
 
 # グラフを表示する
 plt.show()
