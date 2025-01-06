@@ -110,21 +110,7 @@ try:
         current_pos1 = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
         if elapsed_time > 0:        
-            # if elapsed_time <= 1:
-            #     desired_pos0 = 0
-            #     desired_pos1 = 0
-            # else:
-            #     flag_index = 0
-            #     while flag_index < n:
-            #         if impulse_flags[flag_index] == 0:
-            #             desired_pos0 = -impulse_position
-            #             desired_pos1 = -impulse_position
-            #             impulse_flags[flag_index] = 1
-            #             break
-            #         flag_index += 1
-            #     else:
-            #         desired_pos0 = 0
-            #         desired_pos1 = 0
+
             desired_pos0 = np.arcsin((-0.12-0.10637*np.cos(1*elapsed_time) + l2*np.sin(2*np.pi*desired_pos1))/l1) / (2*np.pi)
             desired_pos1 = np.arccos((0.7 - l1*np.cos(2*np.pi*desired_pos0))/l2) / (2*np.pi)
 
