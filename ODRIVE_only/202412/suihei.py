@@ -15,9 +15,9 @@ VELOCITY_CONTROL = 2
 
 # Find two ODrives
 # #0
-odrv0 = odrive.find_any(serial_number='385B34743539')
+odrv1 = odrive.find_any(serial_number='385B34743539')
 # #1    
-odrv1 = odrive.find_any(serial_number='385E344A3539')
+odrv0 = odrive.find_any(serial_number='385E344A3539')
 
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
 # time.sleep(7) 
@@ -91,10 +91,7 @@ impulse_flags = [0] * n
 ### leg ###
 l1=0.45
 l2=0.5
-desired_pos0 = 0.5/(2*np.pi)
-desired_pos1 = 0.7/(2*np.pi)
-print("desired_pos0: ", desired_pos0)
-fx = 0.1
+fx = 2
 
 
 
@@ -110,32 +107,33 @@ try:
         current_pos1 = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
         if elapsed_time > 0:        
+            desired_pos0 = 0.3*np.cos(2*np.pi*elapsed_time/5)
+            desired_pos1 = np.arccos((0.7 - l1*np.cos(desired_pos0))/l2)
+            # desired_pos0 = np.arcsin((-0.12-0.10637*np.cos(1*elapsed_time) + l2*np.sin(2*np.pi*desired_pos1))/l1) / (2*np.pi)
 
-            desired_pos0 = np.arcsin((-0.12-0.10637*np.cos(1*elapsed_time) + l2*np.sin(2*np.pi*desired_pos1))/l1) / (2*np.pi)
-            desired_pos1 = np.arccos((0.7 - l1*np.cos(2*np.pi*desired_pos0))/l2) / (2*np.pi)
-
+            
             # 指令値をリストに格納
             ref0.append(desired_pos0)
             ref1.append(desired_pos1)
             
             new_torque0 = l1*np.cos(2*np.pi*desired_pos0)*fx
-            new_torque1 = -(0.7+l1*np.cos(2*np.pi*desired_pos0))/l2 * fx
+            new_torque1 = -l2*np.cos(2*np.pi*desired_pos1)* fx
             
             # Set the new torque input
-            odrv0.axis0.controller.input_torque = new_torque0
+            odrv0.axis0.controller.input_torque = -new_torque0
             odrv1.axis0.controller.input_torque = new_torque1
 
-            input_torque0.append(odrv0.axis0.controller.input_torque)
-            input_torque1.append(odrv1.axis0.controller.input_torque)
-        else:
-            desired_pos0 = 0
-            desired_pos1 = 0
-            filtered_desired_pos0 = 0
-            filtered_desired_pos1 = 0
-            input_torque0.append(odrv0.axis0.controller.input_torque)
-            input_torque1.append(odrv1.axis0.controller.input_torque)
-            ref0.append(filtered_desired_pos0)
-            ref1.append(filtered_desired_pos1)
+            input_torque0.append(-new_torque0)
+            input_torque1.append(-new_torque1)
+        # else:
+        #     desired_pos0 = 0
+        #     desired_pos1 = 0
+        #     filtered_desired_pos0 = 0
+        #     filtered_desired_pos1 = 0
+        #     input_torque0.append(odrv0.axis0.controller.input_torque)
+        #     input_torque1.append(odrv1.axis0.controller.input_torque)
+        #     ref0.append(filtered_desired_pos0)
+        #     ref1.append(filtered_desired_pos1)
 
         
         # Add the data to the list
@@ -144,7 +142,7 @@ try:
         position_data_0.append(current_pos0)
         current_data_1.append( math.sqrt(odrv1.axis0.motor.foc.Iq_measured**2 + odrv1.axis0.motor.foc.Id_measured**2))
         vel_data_1.append(360*math.pi*odrv1.axis0.pos_vel_mapper.vel/180)
-        position_data_1.append(current_pos1)
+        position_data_1.append(-current_pos1)
 
         time_data.append(elapsed_time)
         # print("pos0: ", current_pos0)
@@ -159,8 +157,8 @@ except KeyboardInterrupt:
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1'])
-        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1))
+        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'Torque_0', 'ref_1', 'Velocity_1', 'Position_1', 'Torque_1'])
+        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, input_torque0, ref1, vel_data_1, position_data_1, input_torque1))
 
     # Set velocity to 0 if the program is interrupted
     odrv0.axis0.requested_state = AxisState.IDLE
