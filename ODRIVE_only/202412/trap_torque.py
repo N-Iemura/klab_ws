@@ -15,9 +15,9 @@ VELOCITY_CONTROL = 2
 
 # Find two ODrives
 # #0
-odrv0 = odrive.find_any(serial_number='385B34743539')
+odrv1 = odrive.find_any(serial_number='385B34743539')
 # #1    
-odrv1 = odrive.find_any(serial_number='385E344A3539')
+odrv0 = odrive.find_any(serial_number='385E344A3539')
 
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
 # time.sleep(7) 
@@ -61,12 +61,12 @@ start_time = time.time()  # Get the current time
 time1 = 0
 
 ## motor only
-Kp0 = 100 # Proportional gain
-Ki0 = 0  # Integral gain
-Kd0 = 1 # Derivative gain
-Kp1 = 250  # Proportional gain
-Ki1 = 0 # Integral gain
-Kd1 = 1 # Derivative gain
+Kp0 = 1.5 # Proportional gain
+Ki0 = 0.6  # Integral gain
+Kd0 = 0.08 # Derivative gain
+Kp1 = 1.8  # Proportional gain
+Ki1 = 0.6 # Integral gain
+Kd1 = 0.08 # Derivative gain
 prev_error0 = 0
 prev_error1 = 0
 prev_time = time.time()
@@ -76,8 +76,8 @@ error_integral1 = 0
 # 指令値を格納するリスト
 ref0 = []
 ref1 = []
-error_queue0 = deque(maxlen=5)
-error_queue1 = deque(maxlen=5)
+error_queue0 = deque(maxlen=3)
+error_queue1 = deque(maxlen=3)
 
 # Define impulse parameters
 impulse_time = 1.0  # Time after which to apply the impulse
@@ -99,28 +99,33 @@ try:
         current_pos0 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0
         current_pos1 = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        if elapsed_time > 0:        
+        if elapsed_time > 0:
             if elapsed_time <= 1:
                 desired_pos0 = 0
                 desired_pos1 = 0
             else:
-                flag_index = 0
-                while flag_index < n:
-                    if impulse_flags[flag_index] == 0:
-                        desired_pos0 = -impulse_position
-                        desired_pos1 = -impulse_position
-                        impulse_flags[flag_index] = 1
-                        break
-                    flag_index += 1
-                else:
-                    desired_pos0 = 0
-                    desired_pos1 = 0
+                desired_pos0 = -0.1
+                desired_pos1 = -0.1
+
+            # if elapsed_time <= 1:
+            #     desired_pos0 = 0
+            #     desired_pos1 = 0
+            # else:
+            #     flag_index = 0
+            #     while flag_index < n:
+            #         if impulse_flags[flag_index] == 0:
+            #             desired_pos0 = -impulse_position
+            #             desired_pos1 = -impulse_position
+            #             impulse_flags[flag_index] = 1
+            #             break
+            #         flag_index += 1
+            #     else:
+            #         desired_pos0 = 0
+            #         desired_pos1 = 0
 
             # 指令値をリストに格納
             ref0.append(desired_pos0)
             ref1.append(desired_pos1)
-            print("desired_pos0: ", desired_pos0)
-            
              
             # Calculate the error - initial_position0
             # 誤差の計算
@@ -133,15 +138,17 @@ try:
             # error_integral1 = max(min(error_integral1, integral_limit), -integral_limit)
             error_integral0 += error0 * time_diff
             error_integral1 += error1 * time_diff
+            # error_derivative0 = error0 - prev_error0 / 0.005
+            # error_derivative1 = error1 - prev_error1 / 0.005
 
             # 誤差の微分項の計算
-            if len(error_queue0) == 5:
-                error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (5 * time_diff)
+            if len(error_queue0) == 3:
+                error_derivative0 = (error_queue0[-1] - error_queue0[0]) / (3 * time_diff)
             else:
                 error_derivative0 = 0
 
-            if len(error_queue1) == 5:
-                error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (5 * time_diff)
+            if len(error_queue1) == 3:
+                error_derivative1 = (error_queue1[-1] - error_queue1[0]) / (3 * time_diff)
             else:
                 error_derivative1 = 0
             
@@ -181,10 +188,12 @@ try:
 
         
         # Add the data to the list
-        current_data_0.append( math.sqrt(odrv0.axis0.motor.foc.Iq_measured**2 + odrv0.axis0.motor.foc.Id_measured**2))
+        # current_data_0.append( math.sqrt(odrv0.axis0.motor.foc.Iq_measured**2 + odrv0.axis0.motor.foc.Id_measured**2))
+        current_data_0.append(odrv0.axis0.motor.foc.Iq_measured)
         vel_data_0.append(360*math.pi*odrv0.axis0.pos_vel_mapper.vel/180)
         position_data_0.append(current_pos0)
-        current_data_1.append( math.sqrt(odrv1.axis0.motor.foc.Iq_measured**2 + odrv1.axis0.motor.foc.Id_measured**2))
+        # current_data_1.append( math.sqrt(odrv1.axis0.motor.foc.Iq_measured**2 + odrv1.axis0.motor.foc.Id_measured**2))
+        current_data_1.append(odrv1.axis0.motor.foc.Iq_measured)
         vel_data_1.append(360*math.pi*odrv1.axis0.pos_vel_mapper.vel/180)
         position_data_1.append(current_pos1)
 
@@ -201,8 +210,8 @@ except KeyboardInterrupt:
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1'])
-        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1))
+        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1', 'current_0', 'current_1', 'input_torque_0', 'input_torque_1'])
+        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1, current_data_0, current_data_1, input_torque0, input_torque1))
 
     # Set velocity to 0 if the program is interrupted
     odrv0.axis0.requested_state = AxisState.IDLE

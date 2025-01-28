@@ -61,10 +61,10 @@ start_time = time.time()  # Get the current time
 time1 = 0
 
 ## motor only
-Kp0 = 10 # Proportional gain
+Kp0 = 30 # Proportional gain
 Ki0 = 0  # Integral gain
 Kd0 = 1 # Derivative gain
-Kp1 = 10  # Proportional gain
+Kp1 = 30  # Proportional gain
 Ki1 = 0 # Integral gain
 Kd1 = 1 # Derivative gain
 prev_error0 = 0
@@ -107,14 +107,14 @@ try:
         current_pos1 = odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
         if elapsed_time > 0:        
-            desired_pos0 = 0.3*np.cos(2*np.pi*elapsed_time/5)
+            desired_pos0 = 0.3*np.cos(2*np.pi*elapsed_time/10)
             desired_pos1 = np.arccos((0.7 - l1*np.cos(desired_pos0))/l2)
             # desired_pos0 = np.arcsin((-0.12-0.10637*np.cos(1*elapsed_time) + l2*np.sin(2*np.pi*desired_pos1))/l1) / (2*np.pi)
-
+    
             
             # 指令値をリストに格納
             ref0.append(desired_pos0)
-            ref1.append(desired_pos1)
+            ref1.append(desired_pos1-1)
             
             new_torque0 = l1*np.cos(2*np.pi*desired_pos0)*fx
             new_torque1 = -l2*np.cos(2*np.pi*desired_pos1)* fx
@@ -137,10 +137,10 @@ try:
 
         
         # Add the data to the list
-        current_data_0.append( math.sqrt(odrv0.axis0.motor.foc.Iq_measured**2 + odrv0.axis0.motor.foc.Id_measured**2))
+        current_data_0.append( odrv0.axis0.motor.foc.Iq_measured)
         vel_data_0.append(360*math.pi*odrv0.axis0.pos_vel_mapper.vel/180)
         position_data_0.append(current_pos0)
-        current_data_1.append( math.sqrt(odrv1.axis0.motor.foc.Iq_measured**2 + odrv1.axis0.motor.foc.Id_measured**2))
+        current_data_1.append( odrv1.axis0.motor.foc.Iq_measured)
         vel_data_1.append(360*math.pi*odrv1.axis0.pos_vel_mapper.vel/180)
         position_data_1.append(-current_pos1)
 
