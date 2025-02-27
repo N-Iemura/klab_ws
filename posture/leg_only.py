@@ -31,7 +31,10 @@ for name in landmark_names:
 csv_writer.writerow(header)
 
 # Webカメラのキャプチャ
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(4) #(0)で内蔵カメラ、(1)で外付けカメラ, デスクトップは(4)
+if not cap.isOpened():
+    print("エラー: カメラを開けません")
+    exit()
 
 frame_count = 0
 try:
