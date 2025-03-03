@@ -1,10 +1,12 @@
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 import pandas as pd
 import numpy as np
+import csv
+import os
 
 # CSVファイルの読み込み
-csv_file = 'csv/leg_landmarks_20250218_075702.csv'
+csv_file = 'csv/leg_landmarks_20250218_103757.csv'
 df = pd.read_csv(csv_file)
 
 # プロットの準備
@@ -12,6 +14,7 @@ fig, ax = plt.subplots()
 
 # フレーム数を取得
 frames = df['Frame'].unique()
+frames = frames[(frames >= 380) & (frames <= 550)]
 
 # 使用する脚を選択（'LEFT' または 'RIGHT'）
 side = 'RIGHT'
@@ -26,6 +29,9 @@ landmark_coords = {
     lm: {'X': df[f"{lm}_X"], 'Y': df[f"{lm}_Y"]}
     for lm in [hip, knee, ankle]
 }
+
+# 角度データを保存するリスト
+angles = []
 
 # 角度計算関数
 def calculate_angle(x1, y1, x2, y2):
@@ -42,6 +48,13 @@ def calculate_angle(x1, y1, x2, y2):
         angle = -angle
     
     return np.degrees(angle)
+
+# CSVファイルの準備
+csv_output_file = os.path.join('angle', os.path.basename(csv_file).replace('leg_landmarks', 'angles'))
+with open(csv_output_file, 'w', newline='') as csvfile:
+    fieldnames = ['Frame', 'Hip-Knee Angle', 'Knee-Ankle Angle']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
 
 # アニメーションの更新関数
 def update(frame):
@@ -75,6 +88,14 @@ def update(frame):
     
     # フレーム数を表示
     ax.text(0.05, 0.85, f"Frame: {frame}", transform=ax.transAxes, verticalalignment='top')
+
+    # 角度データを保存
+    angles.append({'Frame': frame, 'Hip-Knee Angle': hip_knee_angle, 'Knee-Ankle Angle': knee_ankle_angle})
+
+    # リアルタイムでCSVに書き込む
+    with open(csv_output_file, 'a', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=['Frame', 'Hip-Knee Angle', 'Knee-Ankle Angle'])
+        writer.writerow({'Frame': frame, 'Hip-Knee Angle': hip_knee_angle, 'Knee-Ankle Angle': knee_ankle_angle})
     
     # HIPからKNEEへの線を描画
     ax.plot([hip_x, knee_x], [hip_y, knee_y], 'r-')
@@ -92,4 +113,9 @@ def update(frame):
 
 # アニメーションの設定
 ani = FuncAnimation(fig, update, frames=frames, repeat=False)
+
+# アニメーションを動画として保存
+writer = FFMpegWriter(fps=10, metadata=dict(artist='Me'), bitrate=1800)
+ani.save('animation.mp4', writer=writer)
+
 plt.show()
