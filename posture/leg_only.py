@@ -31,8 +31,8 @@ for name in landmark_names:
 csv_writer.writerow(header)
 
 # Webカメラのキャプチャ
-cap = cv2.VideoCapture(0)
-
+cap = cv2.VideoCapture(4) # 0: デフォルトカメラ / 4 (Desk ubuntu)
+ 
 frame_count = 0
 try:
     while cap.isOpened():
