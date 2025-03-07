@@ -3,7 +3,7 @@ from matplotlib.animation import FuncAnimation
 import pandas as pd
 
 # CSVファイルの読み込み
-csv_file = 'csv/leg_landmarks_20250218_075702.csv'
+csv_file = 'csv/leg_landmarks_20250218_103757.csv'
 df = pd.read_csv(csv_file)
 
 # プロットの準備
@@ -11,6 +11,7 @@ fig, ax = plt.subplots()
 
 # フレーム数を取得
 frames = df['Frame'].unique()
+frames = frames[(frames >= 380) & (frames <= 600)]
 
 # 除外するランドマーク
 exclude_landmarks = ["LEFT_HEEL", "LEFT_FOOT_INDEX", "RIGHT_HEEL", "RIGHT_FOOT_INDEX"]

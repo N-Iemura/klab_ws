@@ -6,12 +6,9 @@ l1 = 0.5
 l2 = 0.5
 dt = 0.01
 m = 0.45
-x = 0.2247
-y = -0.62359
-v = 0.1
-desired_pos0 = 1.2
-desired_pos1 = 0.4
 
+desired_pos0 = 0.5
+desired_pos1 = 0.7
 
 t_list = np.linspace(0, 0.1, num=100)
 v = 1

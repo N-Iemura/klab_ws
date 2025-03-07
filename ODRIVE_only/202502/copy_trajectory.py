@@ -11,13 +11,13 @@ from collections import deque
 TORQUE_CONTROL= 1
 MOTOR_CALIBRATION = 4
 AXIS_STATE_CLOSED_LOOP_CONTROL = 8
-VELOCITY_CONTROL = 2
+POSITION_CONTROL = 3
 
 # Find two ODrives
 # #0
-odrv0 = odrive.find_any(serial_number='385B34743539')
+odrv1 = odrive.find_any(serial_number='385B34743539')
 # #1    
-odrv1 = odrive.find_any(serial_number='385E344A3539')
+odrv0 = odrive.find_any(serial_number='385E344A3539')
 
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
 # time.sleep(7) 
@@ -42,20 +42,18 @@ initial_position1 = odrv1.axis0.pos_vel_mapper.pos_rel
 # initial_position2 = odrv2.axis0.pos_vel_mapper.pos_rel
 
 odrv0.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv0.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
+odrv0.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
 odrv0.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
-odrv0.axis0.controller.input_torque = 0
 
 odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv1.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
+odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
 odrv1.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
-odrv1.axis0.controller.input_torque = 0
 
-odrv0.axis0.controller.config.pos_gain = 70.0
-odrv0.axis0.controller.config.vel_gain = 5
+odrv0.axis0.controller.config.pos_gain = 100.0
+odrv0.axis0.controller.config.vel_gain = 2.5
 
-odrv1.axis0.controller.config.pos_gain = 70.0
-odrv1.axis0.controller.config.vel_gain = 5
+odrv1.axis0.controller.config.pos_gain = 100.0
+odrv1.axis0.controller.config.vel_gain = 2.5
 
 start_time = time.time()  # Get the current time
 time1 = 0
@@ -93,7 +91,21 @@ l1=0.45
 l2=0.5
 fx = 2
 
+# Function to read position commands from a CSV file
+def read_position_commands(csv_file):
+    positions = []
+    with open(csv_file, 'r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for row in reader:
+            positions.append((-float(row[1])/360, -float(row[2])/360))  # Read Hip-Knee Angle and Knee-Ankle Angle
+    return positions
+
+# Read position commands from CSV
+position_commands = read_position_commands('angle/angles_20250218_103757.csv')
+
 try:
+    command_index = 0
     while True:
         # Calculate the elapsed time
         time_diff = time.time() - prev_time
@@ -103,50 +115,42 @@ try:
         # Current position
         current_pos0, current_pos1 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0, odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        if elapsed_time > 0:        
-            desired_pos0 = 0.15*np.cos(2*np.pi*elapsed_time/10)-0.3
-            desired_pos1 = np.arccos((0.7 - l1*np.cos(desired_pos0))/l2)
-            # desired_pos0 = np.arcsin((-0.12-0.10637*np.cos(1*elapsed_time) + l2*np.sin(2*np.pi*desired_pos1))/l1) / (2*np.pi)
+        if command_index < len(position_commands):
+            desired_pos0, desired_pos1 = position_commands[command_index]
+            command_index += 1
             
             # 指令値をリストに格納
             ref0.append(desired_pos0)
-            ref1.append(-desired_pos1)
+            ref1.append(desired_pos1)
             
-            new_torque0 = l1*np.cos(2*np.pi*desired_pos0)*fx
-            new_torque1 = -l2*np.cos(2*np.pi*desired_pos1)* fx
-            
-            # Set the new torque input
-            odrv0.axis0.controller.input_torque, odrv1.axis0.controller.input_torque = -new_torque0, new_torque1
+            # Set the new position input
+            odrv0.axis0.controller.input_pos = desired_pos0
+            odrv1.axis0.controller.input_pos = desired_pos1
 
-            input_torque0.append(-new_torque0)
-            input_torque1.append(-new_torque1)
-        # else:
-        #     desired_pos0 = 0
-        #     desired_pos1 = 0
-        #     filtered_desired_pos0 = 0
-        #     filtered_desired_pos1 = 0
-        #     input_torque0.append(odrv0.axis0.controller.input_torque)
-        #     input_torque1.append(odrv1.axis0.controller.input_torque)
-        #     ref0.append(filtered_desired_pos0)
-        #     ref1.append(filtered_desired_pos1)
-        
         # Add the data to the list
-        current_data_0.append( odrv0.axis0.motor.foc.Iq_measured); vel_data_0.append(360*math.pi*odrv0.axis0.pos_vel_mapper.vel/180); position_data_0.append(current_pos0); current_data_1.append( odrv1.axis0.motor.foc.Iq_measured); vel_data_1.append(360*math.pi*odrv1.axis0.pos_vel_mapper.vel/180); position_data_1.append(-current_pos1)
+        current_data_0.append(odrv0.axis0.motor.foc.Iq_measured)
+        vel_data_0.append(360*math.pi*odrv0.axis0.pos_vel_mapper.vel/180)
+        position_data_0.append(current_pos0)
+        current_data_1.append(odrv1.axis0.motor.foc.Iq_measured)
+        vel_data_1.append(360*math.pi*odrv1.axis0.pos_vel_mapper.vel/180)
+        position_data_1.append(current_pos1)
         time_data.append(elapsed_time)
         # print("pos0: ", current_pos0)
         # print("pos1: ", current_pos1)
+                # Wait for 0.5 seconds before the next iteration
+        time.sleep(0.05)
 
 except KeyboardInterrupt:    
     now = datetime.now()
     # Format the date and time as a string
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     # Create the filename
-    filename = f'csv/two_pos_-0.1_{timestamp}.csv'
+    filename = f'csv/two_pos_trac_{timestamp}.csv'
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'Torque_0', 'ref_1', 'Velocity_1', 'Position_1', 'Torque_1'])
-        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, input_torque0, ref1, vel_data_1, position_data_1, input_torque1))
+        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1', 'current_0', 'current_1'])
+        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1, current_data_0, current_data_1))
 
     # Set velocity to 0 if the program is interrupted
     odrv0.axis0.requested_state = AxisState.IDLE
