@@ -15,14 +15,19 @@ l1 = 0.45
 l2 = 0.5
 dt = 0.01
 m = 0.45
+x = 0.2247
+y = -0.62359
+v = 0.1
+desired_pos0 = 1.2
+desired_pos1 = 0.4
 
-desired_pos0 = 0.5
-desired_pos1 = 0.7
 
 t_list = np.linspace(0, 0.5, num=100)
 v_list = np.linspace(0, 0.5, num=100)
-x = 0
-v = 0.1
+
+
+# desired_pos0 = np.arcsin((x + l2 * np.sin(desired_pos1)) / l1)
+# desired_pos1 = np.arccos((y + l1 * np.cos(desired_pos0)) / l2)
 
 fx_list = []
 torque0_list = []
@@ -41,10 +46,9 @@ for t in t_list:
         new_torque1 = 0
     elif 0.05 < t < 0.06:
         fx = m * v / dt
-        desired_pos0 = np.arcsin((x + l2 * np.sin(desired_pos1)) / l1)
-        desired_pos1 = np.arccos((0.7 - l1 * np.cos(desired_pos0)) / l2)
+
         new_torque0 = l1 * np.cos(desired_pos0) * fx
-        new_torque1 = -(0.7 + l1 * np.cos(desired_pos0)) / l2 * fx
+        new_torque1 = -(y + l1 * np.cos(desired_pos0)) / l2 * fx
     elif t >= 0.06:
         fx = 0
         new_torque0 = 0
