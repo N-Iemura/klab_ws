@@ -3,18 +3,17 @@ import matplotlib.pyplot as plt
 
 
 # CSVファイルを読み込む
-df = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/202411/csv/two_pos_-0.1_20241102_002328.csv',skiprows=2, usecols=[0,1,3,4,6], names=['time','Ref_0', 'Position_0', 'Ref_1', 'Position_1'])
+df = pd.read_csv('/home/naga/klab_ws/ODRIVE_only/202411/csv/two_pos_-0.1_20241111_165221.csv',skiprows=2, usecols=[0,1,3,4,6], names=['time','Ref_0', 'Position_0', 'Ref_1', 'Position_1'])
 
-filtered_df = df[(df['time'] >= 0) & (df['time'] <= 20)]
+filtered_df = df[(df['time'] >= 0) & (df['time'] <= 4)]
 
 # 横軸をtime、縦軸をPosition_0とPosition_1に設定してプロットする
 plt.plot(filtered_df['time'].to_numpy(), -filtered_df['Position_0'].to_numpy(), label='Position_0')
 plt.plot(filtered_df['time'].to_numpy(), -filtered_df['Position_1'].to_numpy(), label='Position_1')
 
-# Ref_0とRef_1もプロットする
+## Ref_0とRef_1もプロットする
 plt.plot(filtered_df['time'].to_numpy(), -filtered_df['Ref_0'].to_numpy(), label='Ref_0', linestyle='--')
 plt.plot(filtered_df['time'].to_numpy(), -filtered_df['Ref_1'].to_numpy(), label='Ref_1', linestyle='--')
-
 
 # plt.axhline(y=0.4, color='r', linestyle='--')
 #plt.axhline(y=-0.4, color='r', linestyle='--')

@@ -14,7 +14,7 @@ VELOCITY_CONTROL = 2
 # maxon
 odrv0 = odrive.find_any(serial_number='385B34743539')
 #R100
-odrv1 = odrive.find_any(serial_number='385E344A3539')
+# odrv1 = odrive.find_any(serial_number='385E344A3539')
 
 odrv0.axis0.requested_state = MOTOR_CALIBRATION
-odrv1.axis0.requested_state = MOTOR_CALIBRATION
+# odrv1.axis0.requested_state = MOTOR_CALIBRATION
