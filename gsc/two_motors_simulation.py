@@ -79,11 +79,11 @@ cbar_ax = fig.add_axes([0.9, 0.15, 0.03, 0.7])
 sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=min(x_values), vmax=max(x_values)))
 sm.set_array([])
 cbar = fig.colorbar(sm, cax=cbar_ax)
-cbar.set_label(r'$\it{x}$ values', labelpad=10, rotation=0, ha='center')
 
 # xの値をカラーバーの上に配置
 cbar.ax.xaxis.set_label_position('top')
-cbar.ax.set_xlabel(r'$\it{x}$ values', labelpad=10)
+cbar.ax.set_xlabel('Position of \nx axis', labelpad=10)
+# cbar.ax.set_title(r'$\it{x}$ axis', pad=10)
 
 plt.tight_layout(rect=[0, 0, 0.85, 1])  # 全体レイアウト調整
 plt.show()
