@@ -3,6 +3,11 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+import matplotlib
+print(matplotlib.rcParams['font.serif'])
 
 # LSTMモデル定義
 class LSTMModel(nn.Module):
@@ -33,9 +38,18 @@ print("学習データの列名:", data.columns)
 features = data[['time', 'Ref_0', 'Position_0', 'Ref_1', 'Position_1']].values  # 入力特徴量
 targets = data[['Reduction_Ratio_0', 'Reduction_Ratio_1']].values  # ターゲット
 
+
+
+# 特徴量とターゲットのスケーリング
+scaler_features = MinMaxScaler()
+features = scaler_features.fit_transform(features)
+
+scaler_targets = MinMaxScaler()
+targets = scaler_targets.fit_transform(targets)
+
 # データ整形
-sequence_length = 3  # タイムステップ数
-input_size = features.shape[1]  # 特徴量数
+sequence_length = 10
+input_size = features.shape[1]
 X = []
 y = []
 for i in range(len(features) - sequence_length + 1):
@@ -45,9 +59,9 @@ X = torch.tensor(X, dtype=torch.float32)
 y = torch.tensor(y, dtype=torch.float32)
 
 # モデル初期化
-model = LSTMModel(input_size=input_size, hidden_size=32, num_layers=1)
+model = LSTMModel(input_size=input_size, hidden_size=64, num_layers=2)
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # 訓練ループ
 num_epochs = 1000
@@ -60,35 +74,53 @@ for epoch in range(num_epochs):
     if epoch % 100 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
 
-# 新しい軌道データに対する予測
+# 新しいデータに対する予測
 model.eval()
 with torch.no_grad():
-    # 新しい軌道データ（Reduction_Ratio_0, Reduction_Ratio_1 がない）
-    new_data = pd.read_csv('/home/naga/klab_ws/reduction_control/csv/motion/two_pos_trac_20250218_110915.csv')  # 新しいデータのパス
-    print("新しいデータの列名:", new_data.columns)
-
-    # 必要な列のみを選択
+    new_data = pd.read_csv('/home/naga/klab_ws/reduction_control/csv/motion/two_pos_trac_20250218_111129.csv')
     new_features = new_data[['time', 'ref_0', 'Position_0', 'ref_1', 'Position_1']].values
+    new_features = scaler_features.transform(new_features)
 
-    # シーケンスごとにスライドして予測
     predictions = []
     for i in range(len(new_features) - sequence_length + 1):
-        input_seq = torch.tensor(new_features[i:i+sequence_length], dtype=torch.float32).unsqueeze(0)  # [1, シーケンス長, 特徴量数]
+        input_seq = torch.tensor(new_features[i:i+sequence_length], dtype=torch.float32).unsqueeze(0)
         predicted_ratios = model(input_seq)
         predictions.append(predicted_ratios.numpy())
 
-    # 結果を表示
-    predictions = torch.tensor(predictions).squeeze(1).numpy()  # [サンプル数, 2]
-    print("予測減速比 (Reduction_Ratio_0, Reduction_Ratio_1):")
-    print(predictions)
+    predictions = np.array(predictions).squeeze(1)
+    predictions = scaler_targets.inverse_transform(predictions)  # スケーリングを元に戻す
 
-    # グラフ描画
-    plt.figure(figsize=(10, 6))
-    plt.plot(predictions[:, 0], label="Reduction_Ratio_0", color="blue")
-    plt.plot(predictions[:, 1], label="Reduction_Ratio_1", color="orange")
-    plt.title("Predicted Reduction Ratios")
-    plt.xlabel("Time Step")
-    plt.ylabel("Reduction Ratio")
-    plt.legend()
-    plt.grid()
-    plt.show()
+# フォントを Times New Roman に設定
+rcParams['font.family'] = 'serif'
+rcParams['font.serif'] = ['Times New Roman']  # Times New Roman を指定
+
+
+# グラフ描画
+plt.figure(figsize=(12, 8))
+
+# サブプロット1: Reduction Ratios
+plt.subplot(2, 1, 2)  # 2行1列の1番目のグラフ
+plt.plot(predictions[:, 0], label="Reduction_Ratio_0", color="blue")
+plt.plot(predictions[:, 1], label="Reduction_Ratio_1", color="orange")
+plt.title("Predicted Reduction Ratios")
+plt.xlabel("Time[s]")
+plt.ylabel("Reduction Ratio")
+plt.legend()
+
+# サブプロット2: Position Data
+plt.subplot(2, 1, 1)  # 2行1列の2番目のグラフ
+plt.plot(new_features[sequence_length - 1:, 2], label="Position_0", color="green")  # Position_0
+plt.plot(new_features[sequence_length - 1:, 4], label="Position_1", color="red")    # Position_1
+plt.title("Position Data")
+plt.xlabel("Time[s]")
+plt.ylabel("Position")
+plt.legend()
+
+# レイアウトを調整
+plt.tight_layout()
+
+# グラフをSVG形式で保存
+plt.savefig("/home/naga/klab_ws/reduction_control/fig/predicted_reduction_ratios.svg", format="svg")
+
+# グラフを表示
+plt.show()
