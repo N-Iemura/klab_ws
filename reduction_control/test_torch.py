@@ -31,7 +31,7 @@ class LSTMModel(nn.Module):
         return out
 
 # CSVデータ読み込み
-data = pd.read_csv('/home/naga/klab_ws/reduction_control/csv/motion/two_pos_red_0218.csv')  # 学習用データのパス
+data = pd.read_csv('csv/motion/two_pos_red_0218.csv')  # 学習用データのパス
 print("学習データの列名:", data.columns)
 
 # 特徴量とターゲットの分離
@@ -77,7 +77,7 @@ for epoch in range(num_epochs):
 # 新しいデータに対する予測
 model.eval()
 with torch.no_grad():
-    new_data = pd.read_csv('/home/naga/klab_ws/reduction_control/csv/motion/two_pos_trac_20250218_111129.csv')
+    new_data = pd.read_csv('csv/motion/two_pos_trac_20250218_111129.csv')
     new_features = new_data[['time', 'ref_0', 'Position_0', 'ref_1', 'Position_1']].values
     new_features = scaler_features.transform(new_features)
 
@@ -120,7 +120,7 @@ plt.legend()
 plt.tight_layout()
 
 # グラフをSVG形式で保存
-plt.savefig("/home/naga/klab_ws/reduction_control/fig/predicted_reduction_ratios.svg", format="svg")
+plt.savefig("fig/predicted_reduction_ratios.svg", format="svg")
 
 # グラフを表示
 plt.show()
