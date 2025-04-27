@@ -7,7 +7,8 @@ from matplotlib import rcParams
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import matplotlib
-print(matplotlib.rcParams['font.serif'])
+from matplotlib.animation import FuncAnimation
+
 
 # LSTMモデル定義
 class LSTMModel(nn.Module):
@@ -123,4 +124,65 @@ plt.tight_layout()
 plt.savefig("fig/predicted_reduction_ratios.svg", format="svg")
 
 # グラフを表示
+plt.show()
+
+torque = np.linspace(0, 11, 50)
+
+# Speed (RPM) - Concave-down quadratic approximation
+vertex = 15
+a = (3800 - 2300) / ((0 - vertex)**2 - (12 - vertex)**2)
+b = -2 * a * vertex
+c = 3800
+speed = a * torque**2 + b * torque + c
+
+# Reduction ratios from predicted_ratios
+ratios = predictions[:, 0] # Use the first column of predicted_ratios and convert to numpy array
+
+# Set up the figure and axis
+fig, ax = plt.subplots(figsize=(8, 6))
+line, = ax.plot([], [], color='blue', lw=2)
+fill = None
+
+# Set axis labels and limits
+font_properties = {'family': 'Times New Roman', 'size': 18}
+ax.set_xlabel('Torque [Nm]', fontdict=font_properties)
+ax.set_ylabel('Speed [rpm]', fontdict=font_properties)
+ax.set_xlim(0, 380)
+ax.set_ylim(0, 580)
+ax.tick_params(labelsize=16)
+
+# Initialization function for the animation
+def init():
+    global fill
+    line.set_data([], [])
+    if fill is not None:
+        try:
+            fill.remove()
+        except ValueError:
+            pass
+    return line,
+
+# Update function for the animation
+def update(frame):
+    global fill
+    ratio = ratios[frame]
+    reduced_speed = speed / ratio
+    torque_scaled = torque * ratio
+    line.set_data(torque_scaled, reduced_speed)
+    if fill is not None:
+        try:
+            fill.remove()
+        except ValueError:
+            pass
+    fill = ax.fill_between(torque_scaled, reduced_speed, color='blue', alpha=0.3)
+    ax.set_title(f"Reduction Ratio: {ratio:.2f}", fontsize=18, family='Times New Roman')
+    return line, fill
+
+# Create the animation
+ani = FuncAnimation(fig, update, frames=len(ratios), init_func=init, blit=False, interval=50)
+
+# # Save the animation as a video or GIF (optional)
+ani.save('ani/predicted_ratios_animation.gif', writer='imagemagick')
+
+# Show the animation
 plt.show()
