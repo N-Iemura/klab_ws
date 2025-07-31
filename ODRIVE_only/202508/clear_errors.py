@@ -13,7 +13,7 @@ VELOCITY_CONTROL = 2
 # Find two ODrives
 odrv0 = odrive.find_any(serial_number='3856345D3539')
 odrv1 = odrive.find_any(serial_number='384D346F3539')
-odrv2 = odrive.find_any(serial_number='386834713539')
+odrv2 = odrive.find_any(serial_number='3849346F3539')
 
 # odrv0.config.brake_resistor0.resistance = 2.0
 # odrv0.config.enable_brake_resistor = True
