@@ -4,6 +4,7 @@ import csv
 from datetime import datetime
 import pyrealsense2 as rs
 import numpy as np
+import time  # 追加
 
 # Mediapipeのセットアップ
 mp_pose = mp.solutions.pose
@@ -41,8 +42,11 @@ pipeline.start(config)
 cap = pipeline
 
 frame_count = 0
+frame_duration = 1 / 30  # 30FPSの場合、1フレームあたりの時間は約33ms
 try:
     while True:
+        start_time = time.time()  # フレーム処理開始時刻を記録
+
         frames = cap.wait_for_frames()
         color_frame = frames.get_color_frame()
         if not color_frame:
@@ -66,7 +70,7 @@ try:
             for landmark_id in landmark_ids:
                 landmark = results.pose_landmarks.landmark[landmark_id]
                 row.extend([landmark.x, landmark.y, landmark.z])
-            
+
             # CSVに書き込み
             csv_writer.writerow(row)
 
@@ -74,13 +78,17 @@ try:
             mp_drawing.draw_landmarks(
                 frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-
         # 映像を表示
         cv2.imshow('RealSense', frame)
 
         # 'q'キーが押されたらループを終了
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
+        # フレーム処理時間を一定にするために待機
+        elapsed_time = time.time() - start_time
+        if elapsed_time < frame_duration:
+            time.sleep(frame_duration - elapsed_time)
 
 except Exception as e:
     print(f"An error occurred: {e}")

@@ -6,7 +6,7 @@ import csv
 import os
 
 # CSVファイルの読み込み
-csv_file = 'csv/leg_landmarks_20250218_103757.csv'
+csv_file = 'csv/leg_landmarks_20250303_125801.csv'
 df = pd.read_csv(csv_file)
 
 # プロットの準備
@@ -14,7 +14,7 @@ fig, ax = plt.subplots()
 
 # フレーム数を取得
 frames = df['Frame'].unique()
-frames = frames[(frames >= 380) & (frames <= 550)]
+frames = frames[(frames >= 0) & (frames <= 200)]
 
 # 使用する脚を選択（'LEFT' または 'RIGHT'）
 side = 'RIGHT'
@@ -58,6 +58,9 @@ with open(csv_output_file, 'w', newline='') as csvfile:
 
 # アニメーションの更新関数
 def update(frame):
+    if frame not in df.index:
+        return  # フレームが存在しない場合は何もしない
+    
     ax.clear()
     ax.set_xlim(0, 1)
     ax.set_ylim(1, 0)
@@ -115,7 +118,20 @@ def update(frame):
 ani = FuncAnimation(fig, update, frames=frames, repeat=False)
 
 # アニメーションを動画として保存
+animation_name = os.path.join('mov', os.path.basename(csv_file).replace('leg_landmarks', 'animation').replace('.csv', '.mp4'))
 writer = FFMpegWriter(fps=10, metadata=dict(artist='Me'), bitrate=1800)
-ani.save('animation.mp4', writer=writer)
+ani.save(animation_name, writer=writer)
 
 plt.show()
+
+# # 角度データを2次元グラフにプロット
+# angles_df = pd.DataFrame(angles)
+# plt.figure()
+# plt.plot(angles_df['Frame'], angles_df['Hip-Knee Angle'], label='Hip-Knee Angle')
+# plt.plot(angles_df['Frame'], angles_df['Knee-Ankle Angle'], label='Knee-Ankle Angle')
+# plt.xlabel('Frame')
+# plt.ylabel('Angle (degrees)')
+# plt.title('Hip-Knee and Knee-Ankle Angles Over Time')
+# plt.legend()
+# plt.savefig('angles_plot.svg', format='svg')
+# plt.show()
