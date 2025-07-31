@@ -10,7 +10,7 @@ plt.rcParams['font.family'] = 'Times New Roman'
 # CSVファイルを読み込む
 df = pd.read_csv('csv/motion/two_pos_trac_20250218_111129.csv', skiprows=2, usecols=[0, 1, 3, 4, 6, 7, 8], names=['time', 'Ref_0', 'Position_0', 'Ref_1', 'Position_1', 'Current_0', 'Current_1'])
 
-filtered_df = df[(df['time'] >= 0) & (df['time'] <= 20)]
+filtered_df = df[(df['time'] >= 5) & (df['time'] <= 15)]
 
 # 時間と速度を取得
 time = filtered_df['time'].to_numpy()

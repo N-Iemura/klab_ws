@@ -1,34 +1,61 @@
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+import networkx as nx
+from matplotlib import rcParams
 
-def draw_lstm_model(input_size, hidden_size, num_layers, output_size=2):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, 8)
-    ax.axis('off')
+# フォント設定 (Times New Roman)
+rcParams['font.family'] = 'serif'
+rcParams['font.serif'] = ['Times New Roman']
 
-    # 入力層
-    ax.text(1, 4, f"Input\n(size={input_size})", ha='center', va='center', fontsize=12, bbox=dict(boxstyle="round", fc="lightblue"))
-    ax.arrow(1.5, 4, 1.0, 0, head_width=0.2, head_length=0.2, fc='k', ec='k')
+# グラフの作成
+G = nx.DiGraph()
 
-    # LSTM層
-    lstm_text = f"LSTM Layer(s)\n(hidden={hidden_size}, layers={num_layers})"
-    ax.text(3.5, 4, lstm_text, ha='center', va='center', fontsize=12, bbox=dict(boxstyle="round", fc="lightgreen"))
-    ax.arrow(4.5, 4, 1.0, 0, head_width=0.2, head_length=0.2, fc='k', ec='k')
+# ノードの追加（ラベルと形状を指定）
+nodes = [
+    ("Input", {"label": "Input\n(batch_size, 10, 5)"}),
+    ("LSTM1", {"label": "LSTM Layer 1\nHidden Size: 64"}),
+    ("LSTM2", {"label": "LSTM Layer 2\nHidden Size: 64"}),
+    ("Last", {"label": "Last Timestep\n(batch_size, 64)"}),
+    ("FC", {"label": "Fully Connected\nOutput: 2"}),
+    ("Output", {"label": "Output\nReduction_Ratio_0,1"})
+]
+G.add_nodes_from(nodes)
 
-    # 全結合層
-    ax.text(6, 4, f"Fully Connected\n(size={output_size})", ha='center', va='center', fontsize=12, bbox=dict(boxstyle="round", fc="lightcoral"))
-    ax.arrow(6.7, 4, 1.0, 0, head_width=0.2, head_length=0.2, fc='k', ec='k')
+# エッジの追加
+edges = [
+    ("Input", "LSTM1"),
+    ("LSTM1", "LSTM2"),
+    ("LSTM2", "Last"),
+    ("Last", "FC"),
+    ("FC", "Output")
+]
+G.add_edges_from(edges)
 
-    # 出力層
-    ax.text(8.5, 4, "Output\n(Reduction Ratios)", ha='center', va='center', fontsize=12, bbox=dict(boxstyle="round", fc="khaki"))
+# レイアウトの設定（縦に並べる）
+pos = {
+    "Input": (0, 5),
+    "LSTM1": (0, 4),
+    "LSTM2": (0, 3),
+    "Last": (0, 2),
+    "FC": (0, 1),
+    "Output": (0, 0)
+}
 
-    # タイトル
-    ax.set_title("LSTM Model Architecture", fontsize=16)
+# グラフの描画
+plt.figure(figsize=(6, 8))
+nx.draw(
+    G, pos,
+    with_labels=True,
+    labels={node: data["label"] for node, data in G.nodes(data=True)},
+    node_shape="s",  # 矩形ノード
+    node_size=5000,  # ノードの大きさ
+    node_color="lightblue",
+    font_size=10,
+    font_family="Times New Roman",
+    arrows=True,
+    arrowstyle="->",
+    arrowsize=20
+)
 
-    plt.tight_layout()
-    plt.show()
-
-# パラメータはあなたのコードと一致させる
-draw_lstm_model(input_size=5, hidden_size=64, num_layers=2)
+# グラフをSVG形式で保存
+plt.savefig("lstm_model_structure_networkx.svg", format="svg", bbox_inches="tight")
+plt.show()
