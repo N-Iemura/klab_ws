@@ -1,0 +1,21 @@
+// LSTM Model Structure
+digraph {
+	rankdir=TB size="8,10"
+	A [label="Input
+(batch_size, 10, 5)" shape=box]
+	B [label="LSTM Layer 1
+Hidden Size: 64" shape=box]
+	C [label="LSTM Layer 2
+Hidden Size: 64" shape=box]
+	D [label="Select Last Timestep
+(batch_size, 64)" shape=box]
+	E [label="Fully Connected Layer
+Output: 2" shape=box]
+	F [label="Output
+Reduction_Ratio_0, Reduction_Ratio_1" shape=box]
+	A -> B
+	B -> C
+	C -> D
+	D -> E
+	E -> F
+}
