@@ -11,9 +11,9 @@ AXIS_STATE_CLOSED_LOOP_CONTROL = 8
 VELOCITY_CONTROL = 2
 
 # Find two ODrives
-odrv0 = odrive.find_any(serial_number='385B34743539')
-odrv1 = odrive.find_any(serial_number='385E344A3539')
-odrv2 = odrive.find_any(serial_number='385E344A353A')
+odrv0 = odrive.find_any(serial_number='3856345D3539')
+odrv1 = odrive.find_any(serial_number='384D346F3539')
+odrv2 = odrive.find_any(serial_number='386834713539')
 
 # odrv0.config.brake_resistor0.resistance = 2.0
 # odrv0.config.enable_brake_resistor = True

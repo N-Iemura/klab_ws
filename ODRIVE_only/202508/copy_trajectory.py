@@ -14,12 +14,13 @@ AXIS_STATE_CLOSED_LOOP_CONTROL = 8
 POSITION_CONTROL = 3
 
 # Find two ODrives
-# #0
-odrv0 = odrive.find_any(serial_number='385B34743539')
-# #1    
-odrv1 = odrive.find_any(serial_number='385E344A3539')
-# #2    
-odrv2 = odrive.find_any(serial_number='385E344A353A')
+# Tmotor
+odrv0 = odrive.find_any(serial_number='3856345D3539')
+# Maxon
+odrv1 = odrive.find_any(serial_number='384D346F3539')
+# Encoder
+odrv2 = odrive.find_any(serial_number='386834713539')
+
 
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
 # time.sleep(7) 
