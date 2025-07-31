@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 from datetime import datetime
+<<<<<<< HEAD
+=======
 from collections import deque
+>>>>>>> 647c2ae7e8c4f6ed9119c7725222fb729d12342a
 
 TORQUE_CONTROL= 1
 MOTOR_CALIBRATION = 4
@@ -19,6 +22,11 @@ odrv0 = odrive.find_any(serial_number='385B34743539')
 # #1    
 odrv1 = odrive.find_any(serial_number='385E344A3539')
 
+<<<<<<< HEAD
+# odrv2 = odrive.find_any(serial_number='3849346F3539')
+
+=======
+>>>>>>> 647c2ae7e8c4f6ed9119c7725222fb729d12342a
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
 # time.sleep(7) 
 time_data = []
