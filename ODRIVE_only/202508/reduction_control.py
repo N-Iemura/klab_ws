@@ -19,7 +19,7 @@ odrv0 = odrive.find_any(serial_number='3856345D3539')
 # Maxon
 odrv1 = odrive.find_any(serial_number='384D346F3539')
 # Encoder
-odrv2 = odrive.find_any(serial_number='386834713539')
+odrv2 = odrive.find_any(serial_number='3849346F3539')
 
 
 # odrv0.axis0.requested_state = MOTOR_CALIBRATION
@@ -50,7 +50,7 @@ odrv0.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 
 odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
 odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
-odrv1.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
+odrv1.axis0.config.motor.torque_constant = 0.091 #(トルク定数 8.23/Kv)
 
 odrv0.axis0.controller.config.pos_gain = 100.0
 odrv0.axis0.controller.config.vel_gain = 2.5
