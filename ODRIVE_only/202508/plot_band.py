@@ -57,7 +57,7 @@ plt.show()
 plt.figure(figsize=(10, 6))
 plt.plot(time, velocity_0, label='Velocity_0', color='blue')
 plt.plot(time, velocity_1, label='Velocity_1', color='green')
-plt.plot(time, output_vel_0, label='Output_vel_0', color='red')
+plt.plot(time, output_vel_0, label='Output_vel', color='red')
 plt.xlabel('Time [s]')  # 単位を追加
 plt.ylabel('Values [turn/s]')  # 単位を追加
 plt.legend()

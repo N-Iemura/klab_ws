@@ -146,7 +146,7 @@ except KeyboardInterrupt:
     # Format the date and time as a string
     timestamp = now.strftime("%Y%m%d_%H%M")
     # Create the filename
-    filename = f'csv/two_pos_trac_{timestamp}.csv'
+    filename = f'csv/vr_{timestamp}.csv'
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)

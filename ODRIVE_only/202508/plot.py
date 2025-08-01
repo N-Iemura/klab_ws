@@ -7,7 +7,7 @@ from matplotlib import rcParams
 rcParams['font.family'] = 'Times New Roman'
 
 # CSVファイルを読み込む
-csv_file = "csv/two_pos_trac_20250801_1947.csv"  # CSVファイルのパスを指定してください
+csv_file = "csv/two_pos_trac_20250801_1705.csv"  # CSVファイルのパスを指定してください
 data = pd.read_csv(csv_file)
 
 # データを取得
