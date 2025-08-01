@@ -32,10 +32,8 @@ position_data_0 = []
 current_data_1 = []
 vel_data_1 = []
 position_data_1 = []
-output_pos_data0 = []
-output_vel_data0 = []
-output_pos_data1 = []
-output_vel_data1 = []
+output_pos_data = []
+output_vel_data = []
 
 input_torque0 = []
 input_torque1 = []
@@ -45,11 +43,11 @@ initial_position1 = odrv1.axis0.pos_vel_mapper.pos_rel
 # initial_position2 = odrv2.axis0.pos_vel_mapper.pos_rel
 
 odrv0.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv0.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
+odrv0.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
 odrv0.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 
 odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
+odrv1.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
 odrv1.axis0.config.motor.torque_constant = 0.091 #(トルク定数 8.23/Kv)
 
 odrv0.axis0.controller.config.pos_gain = 100.0
@@ -95,20 +93,21 @@ l2=0.5
 fx = 2
 
 # Function to read position commands from a CSV file
-def read_position_commands(csv_file):
-    positions = []
-    with open(csv_file, 'r') as file:
-        reader = csv.reader(file)
-        next(reader)  # Skip header
-        for row in reader:
-            positions.append((-float(row[1])/360, -float(row[2])/360))  # Read Hip-Knee Angle and Knee-Ankle Angle
-    return positions
-
-# Read position commands from CSV
-position_commands = read_position_commands('angle/angles_20250218_103757.csv')
+# def read_position_commands(csv_file):
+#     positions = []
+#     with open(csv_file, 'r') as file:
+#         reader = csv.reader(file)
+#         next(reader)  # Skip header
+#         for row in reader:
+#             positions.append((-float(row[1])/360, -float(row[2])/360))  # Read Hip-Knee Angle and Knee-Ankle Angle
+#     return positions
 
 try:
     command_index = 0
+    target_velocity = 10  # 最終的な目標速度 (turn/s)
+    velocity_step = 1     # 速度を増加させるステップ (turn/s)
+    current_velocity = 0  # 現在の速度 (初期値は0)
+
     while True:
         # Calculate the elapsed time
         time_diff = time.time() - prev_time
@@ -118,30 +117,32 @@ try:
         # Current position
         current_pos0, current_pos1 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0, odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        if command_index < len(position_commands):
-            desired_pos0, desired_pos1 = position_commands[command_index]
-            command_index += 1
-            
-            # 指令値をリストに格納
-            ref0.append(desired_pos0)
-            ref1.append(desired_pos1)
-            
-            # Set the new position input
-            odrv0.axis0.controller.input_pos = desired_pos0
-            odrv1.axis0.controller.input_pos = desired_pos1
+        # 徐々に速度を増加させる
+        if current_velocity < target_velocity:
+            current_velocity += velocity_step
+            if current_velocity > target_velocity:
+                current_velocity = target_velocity  # 目標速度を超えないようにする
+
+        # Set velocity for odrv0 and odrv1
+        odrv0.axis0.controller.input_vel = current_velocity  # odrv0の速度を設定
+        odrv1.axis0.controller.input_vel = 0                 # odrv1の速度は0のまま
 
         # Add the data to the list
         current_data_0.append(odrv0.axis0.motor.foc.Iq_measured)
-        vel_data_0.append(360*math.pi*odrv0.axis0.pos_vel_mapper.vel/180)
+        vel_data_0.append(odrv0.axis0.pos_vel_mapper.vel)
         position_data_0.append(current_pos0)
         current_data_1.append(odrv1.axis0.motor.foc.Iq_measured)
-        vel_data_1.append(360*math.pi*odrv1.axis0.pos_vel_mapper.vel/180)
+        vel_data_1.append(odrv1.axis0.pos_vel_mapper.vel)
         position_data_1.append(current_pos1)
-        time_data.append(elapsed_time)
-        # print("pos0: ", current_pos0)
-        # print("pos1: ", current_pos1)
-                # Wait for 0.5 seconds before the next iteration
+        time_data.append(elapsed_time) 
+        output_pos_data.append(odrv2.axis0.pos_vel_mapper.pos_rel)
+        output_vel_data.append(odrv2.axis0.pos_vel_mapper.vel)
+
+        # Wait for 0.05 seconds before the next iteration
         time.sleep(0.05)
+        # Break the loop if the elapsed time exceeds a certain limit (e.g., 10 seconds)
+        if elapsed_time > 10:
+            break
 
 except KeyboardInterrupt:    
     now = datetime.now()
@@ -152,9 +153,30 @@ except KeyboardInterrupt:
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1', 'current_0', 'current_1'])
-        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1, current_data_0, current_data_1))
+        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1', 'Output_pos_0', 'Output_vel_0', 'Current_0', 'Current_1'])
+        # Write the data to the CSV file
 
-    # Set velocity to 0 if the program is interrupted
+        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1, output_pos_data, output_vel_data, current_data_0, current_data_1))
+    print(f"Data saved to {filename}")
+    # Clear the data lists
+    time_data.clear()
+    time_d_data.clear()
+    current_data_0.clear()
+    vel_data_0.clear()
+    position_data_0.clear()
+    current_data_1.clear()
+    vel_data_1.clear()
+    position_data_1.clear()
+    output_pos_data.clear()
+    output_vel_data.clear()
+    input_torque0.clear()
+    input_torque1.clear()
+    ref0.clear()
+    ref1.clear()
+    print("Program interrupted. Data saved and cleared.")
+    # Clear errors
+    odrv0.clear_errors()
+    odrv1.clear_errors()
+    # Reset the ODrive states
     odrv0.axis0.requested_state = AxisState.IDLE
     odrv1.axis0.requested_state = AxisState.IDLE
