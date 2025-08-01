@@ -17,5 +17,5 @@ odrv2 = odrive.find_any(serial_number='3849346F3539')
 
 odrv0.axis0.requested_state = AxisState.MOTOR_CALIBRATION
 odrv1.axis0.requested_state = AxisState.MOTOR_CALIBRATION
-odrv2.axis0.requested_state = AxisState.MOTOR_CALIBRATION
+# odrv2.axis0.requested_state = AxisState.MOTOR_CALIBRATION
 time.sleep(3)

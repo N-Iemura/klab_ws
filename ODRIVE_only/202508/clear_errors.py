@@ -25,4 +25,4 @@ odrv2.clear_errors()
 
 odrv0.axis0.requested_state = AxisState.IDLE
 odrv1.axis0.requested_state = AxisState.IDLE
-odrv2.axis0.requested_state = AxisState.IDLE
+# odrv2.axis0.requested_state = AxisState.IDLE
