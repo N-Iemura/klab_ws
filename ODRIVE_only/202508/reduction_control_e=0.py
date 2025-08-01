@@ -104,7 +104,7 @@ fx = 2
 
 try:
     command_index = 0
-    target_velocity = 10  # 最終的な目標速度 (turn/s)
+    target_velocity = 25  # 最終的な目標速度 (turn/s)
     velocity_step = 1     # 速度を増加させるステップ (turn/s)
     current_velocity = 0  # 現在の速度 (初期値は0)
 
@@ -141,22 +141,22 @@ try:
         # Wait for 0.05 seconds before the next iteration
         time.sleep(0.05)
         # Break the loop if the elapsed time exceeds a certain limit (e.g., 10 seconds)
-        if elapsed_time > 10:
+        if elapsed_time > 20:
             break
 
 except KeyboardInterrupt:    
     now = datetime.now()
     # Format the date and time as a string
-    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    timestamp = now.strftime("%Y%m%d_%H%M")
     # Create the filename
     filename = f'csv/two_pos_trac_{timestamp}.csv'
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['time','ref_0', 'Velocity_0', 'Position_0', 'ref_1', 'Velocity_1', 'Position_1', 'Output_pos_0', 'Output_vel_0', 'Current_0', 'Current_1'])
+        writer.writerow(['time', 'Velocity_0', 'Position_0', 'Velocity_1', 'Position_1', 'Output_pos_0', 'Output_vel_0', 'Current_0', 'Current_1'])
         # Write the data to the CSV file
 
-        writer.writerows(zip(time_data, ref0, vel_data_0, position_data_0, ref1, vel_data_1, position_data_1, output_pos_data, output_vel_data, current_data_0, current_data_1))
+        writer.writerows(zip(time_data, vel_data_0, position_data_0, vel_data_1, position_data_1, output_pos_data, output_vel_data, current_data_0, current_data_1))
     print(f"Data saved to {filename}")
     # Clear the data lists
     time_data.clear()
