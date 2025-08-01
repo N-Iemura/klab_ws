@@ -7,14 +7,14 @@ from matplotlib import rcParams
 rcParams['font.family'] = 'Times New Roman'
 
 # CSVファイルを読み込む
-csv_file = "csv/two_pos_trac_20250801_1705.csv"  # CSVファイルのパスを指定してください
+csv_file = "csv/two_pos_trac_20250801_1631.csv"  # CSVファイルのパスを指定してください
 data = pd.read_csv(csv_file)
 
 # データを取得
-time = data['time']
-velocity_0 = data['Velocity_0']
-velocity_1 = -data['Velocity_1']
-output_vel_0 = -data['Output_vel_0']
+time = data['time'].to_numpy()
+velocity_0 = data['Velocity_0'].to_numpy()
+velocity_1 = -data['Velocity_1'].to_numpy()
+output_vel_0 = -data['Output_vel_0'].to_numpy()
 
 # 個別プロット
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))  # 横に3つのサブプロットを作成
