@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import os
 from matplotlib import rcParams
 
-# フォントをTimesに設定
+# フォントをTimesに設定し、サイズを18ptに
 rcParams['font.family'] = 'Times New Roman'
+rcParams['font.size'] = 18
 
 # CSVファイルを読み込む
 csv_file = "csv/ve0_20250807_1517.csv"  # CSVファイルのパスを指定してください
@@ -123,6 +124,8 @@ plt.ylabel('Position [turn]')  # 単位を追加
 plt.title('All Positions Combined')
 plt.xlim(0, time.max())  # x軸の範囲を設定（右端の余白を削除）
 plt.legend()
+plt.xlim(left=0)
+plt.tick_params(axis='both', direction='in')  # ちょんちょん（目盛）を内向きに
 
 # まとめた位置グラフの保存
 position_combined_plot_filename = os.path.splitext(csv_filename)[0] + "_position_combined.png"  # まとめた位置プロット用の名前
