@@ -104,9 +104,10 @@ fx = 2
 
 try:
     command_index = 0
-    target_velocity = 1  # 最終的な目標速度 (turn/s)
-    velocity_step = 1     # 速度を増加させるステップ (turn/s)
-    current_velocity = 0  # 現在の速度 (初期値は0)
+    
+    # Sin wave parameters
+    frequency = 0.5    # Hz (1 cycle per second)
+    amplitude = 5.0    # turn/s (maximum velocity)
 
     while True:
         # Calculate the elapsed time
@@ -117,15 +118,12 @@ try:
         # Current position
         current_pos0, current_pos1 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0, odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        # 徐々に速度を増加させる
-        if current_velocity < target_velocity:
-            current_velocity += velocity_step
-            if current_velocity > target_velocity:
-                current_velocity = target_velocity  # 目標速度を超えないようにする
+        # Generate sin wave velocity for odrv0
+        sin_velocity = amplitude * math.sin(2 * math.pi * frequency * elapsed_time)
 
         # Set velocity for odrv0 and odrv1
-        odrv0.axis0.controller.input_vel = current_velocity  # odrv0の速度を設定
-        odrv1.axis0.controller.input_vel = 0                 # odrv1の速度は0のまま
+        odrv0.axis0.controller.input_vel = sin_velocity  # odrv0をsin波で動作
+        odrv1.axis0.controller.input_vel = 0             # odrv1の速度は0のまま
 
         # Add the data to the list
         current_data_0.append(odrv0.axis0.motor.foc.Iq_measured)

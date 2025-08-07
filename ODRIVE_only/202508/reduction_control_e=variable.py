@@ -104,9 +104,12 @@ fx = 2
 
 try:
     command_index = 0
-    target_velocity = 1  # 最終的な目標速度 (turn/s)
-    velocity_step = 1     # 速度を増加させるステップ (turn/s)
-    current_velocity = 0  # 現在の速度 (初期値は0)
+    
+    # odrv0: Constant velocity parameters
+    odrv0_constant_velocity = 5.0  # Constant velocity for odrv0
+    
+    # odrv1: Various motion patterns parameters
+    pattern_duration = 3  # Each pattern lasts 5 second
 
     while True:
         # Calculate the elapsed time
@@ -117,15 +120,34 @@ try:
         # Current position
         current_pos0, current_pos1 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0, odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        # 徐々に速度を増加させる
-        if current_velocity < target_velocity:
-            current_velocity += velocity_step
-            if current_velocity > target_velocity:
-                current_velocity = target_velocity  # 目標速度を超えないようにする
+        # odrv0: Set constant velocity
+        odrv0_velocity = odrv0_constant_velocity
+        
+        # odrv1: Determine which constant velocity pattern to use based on elapsed time
+        pattern_index = int(elapsed_time / pattern_duration) % 8  # 8 different constant velocities
+        
+        if pattern_index == 0:
+            # Pattern 1: Zero velocity (停止)
+            odrv1_velocity = 0.0
+        elif pattern_index == 1:
+            # Pattern 2: Low positive velocity
+            odrv1_velocity = 10.0
+        elif pattern_index == 2:
+            # Pattern 3: Medium positive velocity
+            odrv1_velocity = 20.0
+        elif pattern_index == 3:
+            # Pattern 4: High positive velocity
+            odrv1_velocity = -20.0
+        elif pattern_index == 4:
+            # Pattern 5: Very high positive velocity
+            odrv1_velocity = -10.0
+        else:  # pattern_index == 7
+            # Pattern 8: High negative velocity
+            odrv1_velocity = 0
 
         # Set velocity for odrv0 and odrv1
-        odrv0.axis0.controller.input_vel = current_velocity  # odrv0の速度を設定
-        odrv1.axis0.controller.input_vel = 0                 # odrv1の速度は0のまま
+        odrv0.axis0.controller.input_vel = odrv0_velocity  # odrv0は一定速度で回転
+        odrv1.axis0.controller.input_vel = odrv1_velocity  # odrv1はいろいろなパターンで動作
 
         # Add the data to the list
         current_data_0.append(odrv0.axis0.motor.foc.Iq_measured)
