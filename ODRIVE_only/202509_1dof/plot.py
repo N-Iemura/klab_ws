@@ -8,7 +8,7 @@ rcParams['font.family'] = 'Times New Roman'
 rcParams['font.size'] = 18
 
 # CSVファイルを読み込む
-csv_file = "csv/two_pos_trac_20250801_1645.csv"  # CSVファイルのパスを指定してください
+csv_file = "csv/ve0_20250924_2157.csv"  # CSVファイルのパスを指定してください
 data = pd.read_csv(csv_file)
 
 # データを取得

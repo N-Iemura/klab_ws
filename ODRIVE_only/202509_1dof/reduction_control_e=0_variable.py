@@ -43,11 +43,11 @@ initial_position1 = odrv1.axis0.pos_vel_mapper.pos_rel
 # initial_position2 = odrv2.axis0.pos_vel_mapper.pos_rel
 
 odrv0.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv0.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
+odrv0.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
 odrv0.axis0.config.motor.torque_constant = 0.106 #(トルク定数 8.23/Kv)
 
 odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
+odrv1.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
 odrv1.axis0.config.motor.torque_constant = 0.091 #(トルク定数 8.23/Kv)
 
 odrv0.axis0.controller.config.pos_gain = 100.0
@@ -103,8 +103,10 @@ fx = 2
 #     return positions
 
 try:
-    # 90度の位置を設定 (90度 = 0.25回転)
-    target_position = 0.5  # 90度をターン単位で表現
+    command_index = 0
+    
+    # Various motion patterns parameters
+    pattern_duration = 5.0  # Each pattern lasts 5 seconds
     
     while True:
         # Calculate the elapsed time
@@ -115,9 +117,38 @@ try:
         # Current position
         current_pos0, current_pos1 = odrv0.axis0.pos_vel_mapper.pos_rel-initial_position0, odrv1.axis0.pos_vel_mapper.pos_rel-initial_position1
 
-        # Set position for odrv0 and odrv1 to maintain 90 degrees
-        odrv0.axis0.controller.input_pos = initial_position0
-        odrv1.axis0.controller.input_pos = initial_position1 + target_position
+        # Determine which pattern to use based on elapsed time
+        pattern_index = int(elapsed_time / pattern_duration) % 6  # 6 different patterns, cycle every 30 seconds
+        pattern_time = elapsed_time % pattern_duration  # Time within current pattern
+        odrv0_velocity = 0
+        odrv1_velocity = 0
+        if pattern_index == 0:
+            # Pattern 1: Constant velocity
+            odrv0_velocity = 1.0
+            odrv1_velocity = 0.0
+        elif pattern_index == 1:
+            # Pattern 2: Sin wave
+            odrv0_velocity = 0
+            odrv1_velocity = 100/163
+        elif pattern_index == 2:
+            # Pattern 3: Step function (alternating velocities)
+            odrv0_velocity = 1
+            odrv1_velocity = 100/163
+        elif pattern_index == 3:
+            odrv0_velocity = 1
+            odrv1_velocity = -100/163
+        elif pattern_index == 4:
+            # Pattern 5: Cosine wave with different frequency
+            odrv0_velocity = 1
+            odrv1_velocity = 200/163
+        else:  # pattern_index == 5
+            # Pattern 6: Combined sin and cos waves
+            odrv0_velocity = 0
+            odrv1_velocity = 0
+
+        # Set velocity for odrv0 and odrv1
+        odrv0.axis0.controller.input_vel = odrv0_velocity  # odrv0をいろいろなパターンで動作
+        odrv1.axis0.controller.input_vel = 0               # odrv1の速度は0のまま
 
         # Add the data to the list
         current_data_0.append(odrv0.axis0.motor.foc.Iq_measured)
@@ -131,15 +162,13 @@ try:
         output_vel_data.append(odrv2.axis0.pos_vel_mapper.vel)
 
         # Break the loop if the elapsed time exceeds a certain limit (e.g., 10 seconds)
-        if elapsed_time > 20:
-            break
 
 except KeyboardInterrupt:    
     now = datetime.now()
     # Format the date and time as a string
     timestamp = now.strftime("%Y%m%d_%H%M")
     # Create the filename
-    filename = f'csv/two_pos_{timestamp}.csv'
+    filename = f'csv/ve0_{timestamp}.csv'
 
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
