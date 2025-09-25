@@ -258,9 +258,9 @@ def analyze_and_plot_step_response(csv_filename):
     
     # 一時的にグラフファイルを作成（表示用）
     os.makedirs('fig', exist_ok=True)
-    base_filename = os.path.basename(csv_filename).replace('.csv', '_step_response.png')
+    base_filename = os.path.basename(csv_filename).replace('.csv', '_step_response.pdf')
     temp_graph_filename = os.path.join('fig', base_filename)
-    plt.savefig(temp_graph_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(temp_graph_filename, dpi=300, bbox_inches='tight', format='pdf')
     
     # グラフを表示
     plt.show()

@@ -265,9 +265,9 @@ def analyze_and_plot_output_response(csv_filename):
     
     # グラフファイル保存
     os.makedirs('fig', exist_ok=True)
-    base_filename = os.path.basename(csv_filename).replace('.csv', '_output_step_response.png')
+    base_filename = os.path.basename(csv_filename).replace('.csv', '_output_step_response.pdf')
     temp_graph_filename = os.path.join('fig', base_filename)
-    plt.savefig(temp_graph_filename, dpi=300, bbox_inches='tight')
+    plt.savefig(temp_graph_filename, dpi=300, bbox_inches='tight', format='pdf')
     
     # グラフを表示
     plt.show()
