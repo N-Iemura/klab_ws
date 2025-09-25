@@ -1,0 +1,12 @@
+{
+  "Motor0_Position": {
+    "kp": 6.8,
+    "ki": 0.0,
+    "kd": 0.25
+  },
+  "Motor1_Position": {
+    "kp": 0.9,
+    "ki": 0.0,
+    "kd": 0.0125
+  }
+}
