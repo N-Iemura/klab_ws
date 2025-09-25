@@ -1,14 +1,13 @@
 """
-出力軸ステップ制御 - Motor0のみ版
 可変減速機構の出力軸をステップ動作させる（Motor1は固定）
 
 可変減速機構の原理:
-- output_speed = motor1_speed/20 + motor0_speed * 163/2000
-- Motor1を固定（速度=0）の場合: output_speed = motor0_speed * 163/2000
+- output_speed = motor0_speed/20 + motor2_speed * 163/2000
+- Motor1を固定（速度=0）の場合: output_speed = motor0_speed * 1/20
 - 位置制御: output_pos = motor0_pos * 163/2000
 
 使用方法:
-1. python output_step_control_motor0_only.py を実行
+1. python output_step_control.py を実行
 2. 別ターミナルで python pid_gain_adjuster_integrated.py を実行してリアルタイム調整
 
 特徴:
@@ -52,7 +51,7 @@ else:
     print("警告: 日本語フォントが見つかりません。グラフは英語表記になります。")
 
 # ==================================================================================
-# 出力軸制御設定 - ここを編集してステップ応答パターンをカスタマイズ
+# モータ制御設定 - ここを編集してステップ応答パターンをカスタマイズ
 # ==================================================================================
 
 # ステップ応答パターン設定
@@ -61,24 +60,32 @@ STEP_CONFIG = {
     'initial_wait': 1.0,        # 最初のステップまでの待機時間[秒]
     'step_duration': 3.0,       # 各ステップの持続時間[秒]
     
-    # 出力軸のステップ振幅[turn]
-    'output_amplitude': 0.2,    # 出力軸のステップ高さ
+    # モータ別のステップ振幅[turn]
+    'motor0_amplitude': 0.3,    # T-motorのステップ高さ
+    'motor1_amplitude': -0.3,    # Maxonのステップ高さ
+    
+    # ステップパターン（True=有効, False=無効）
+    'motor0_enabled': True,     # Motor0を動かすか
+    'motor1_enabled': True,     # Motor1を動かすか
+    
+    # ステップの種類（'both'=同期, 'alternate'=交互, 'opposite'=逆位相）
+    'pattern_type': 'both',     # 'both', 'alternate', 'opposite'
     
     # 可変減速機構パラメータ
-    'motor0_gear_ratio': 1/20,  # Motor0の減速比 (163/2000)
-    'motor1_gear_ratio': 163/2000,      # Motor1の減速比 (1/20) - 固定時は使用されない
+    'motor0_gear_ratio': 1/20,      # Motor0の減速比 (1/20)
+    'motor1_gear_ratio': 163/2000,  # Motor1の減速比 (163/2000)
 }
 
-# PIDゲイン設定（出力軸制御用）
+# PIDゲイン設定
 PID_CONFIG = {
-    'output_position': {'kp': 6.8, 'ki': 0.0, 'kd': 0.25, 'max_output': 5.0},   # 出力位置制御
-    'output_velocity': {'kp': 0.5, 'ki': 0.0, 'kd': 0.01, 'max_output': 3.0},   # 出力速度制御（オプション）
+    'motor0': {'kp': 6.8, 'ki': 0.0, 'kd': 0.25, 'max_output': 5.0},   # T-motor
+    'motor1': {'kp': 0.9, 'ki': 0.0, 'kd': 0.0125, 'max_output': 0.1}     # Maxon (振動対策で大幅に低減)
 }
 
 # 安全制限設定
 SAFETY_CONFIG = {
     'max_torque0': 6.0,         # T-motorの最大トルク[Nm]
-    'max_torque1': 0.0,         # Maxonは固定（トルク=0）
+    'max_torque1': 0.1,         # Maxonの最大トルク[Nm]（振動対策で低減）
 }
 
 # ==================================================================================
@@ -187,14 +194,14 @@ def load_gains_from_file(filename):
         print(f"ゲイン読み込みエラー: {e}")
         return False
 
-def generate_output_step_targets(elapsed_time):
-    """出力軸のステップ目標値を生成"""
+def generate_step_targets(elapsed_time):
+    """設定に基づいてステップ目標値を生成"""
     initial_wait = STEP_CONFIG['initial_wait']
     step_duration = STEP_CONFIG['step_duration']
     
     # 初期待機時間
     if elapsed_time < initial_wait:
-        return 0.0
+        return 0.0, 0.0
     
     # ステップサイクル計算
     step_cycle = (elapsed_time - initial_wait) % (step_duration * 4)
@@ -213,71 +220,68 @@ def generate_output_step_targets(elapsed_time):
         # 第4段階: 0
         step_value = 0.0
     
-    # 出力軸の目標値
-    target_output_pos = step_value * STEP_CONFIG['output_amplitude']
+    # モータ別の目標値計算
+    target_pos0 = 0.0
+    target_pos1 = 0.0
     
-    return target_output_pos
+    if STEP_CONFIG['motor0_enabled']:
+        target_pos0 = step_value * STEP_CONFIG['motor0_amplitude']
+    
+    if STEP_CONFIG['motor1_enabled']:
+        if STEP_CONFIG['pattern_type'] == 'both':
+            # 同期パターン
+            target_pos1 = step_value * STEP_CONFIG['motor1_amplitude']
+        elif STEP_CONFIG['pattern_type'] == 'opposite':
+            # 逆位相パターン
+            target_pos1 = -step_value * STEP_CONFIG['motor1_amplitude']
+        elif STEP_CONFIG['pattern_type'] == 'alternate':
+            # 交互パターン（Motor0が動いている時はMotor1は止まる）
+            if abs(step_value) > 0.5:
+                target_pos1 = 0.0
+            else:
+                # Motor0が0の時にMotor1が動く
+                alt_cycle = ((elapsed_time - initial_wait) / step_duration) % 4
+                if 1 <= alt_cycle < 2 or 3 <= alt_cycle < 4:
+                    target_pos1 = STEP_CONFIG['motor1_amplitude'] if alt_cycle < 2 else -STEP_CONFIG['motor1_amplitude']
+    
+    return target_pos0, target_pos1
 
-def analyze_and_plot_output_response(csv_filename):
-    """CSVデータから出力軸ステップ応答を解析してグラフを表示"""
-    print(f"出力軸ステップ応答解析を開始: {csv_filename}")
-    
-    # CSVファイル読み込み
-    df = pd.read_csv(csv_filename)
-    
-    # グラフ作成
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('Output Axis Step Response Analysis', fontsize=16)
+def analyze_motor_response(df, motor_id, axes):
+    """個別モータのステップ応答解析"""
+    target_col = f'motor{motor_id}_setpoint_pos'
+    actual_col = f'motor{motor_id}_pos'
+    error_col = f'motor{motor_id}_error_pos'
+    torque_col = f'motor{motor_id}_torque'
     
     time_data = df['time'].values
+    target_data = df[target_col].values
+    actual_data = df[actual_col].values
+    error_data = df[error_col].values
+    torque_data = df[torque_col].values
     
-    # 1. 出力位置応答
-    axes[0, 0].plot(time_data, df['output_setpoint_pos'].values, 'r--', label='Target', linewidth=2)
-    axes[0, 0].plot(time_data, df['output_pos'].values, 'b-', label='Actual', linewidth=1)
-    axes[0, 0].set_title('Output Position Step Response')
-    axes[0, 0].set_ylabel('Position [turn]')
-    axes[0, 0].grid(True)
-    axes[0, 0].legend()
+    # 1. Position Step Response
+    axes[0].plot(time_data, target_data, 'r--', label='Target', linewidth=2)
+    axes[0].plot(time_data, actual_data, 'b-', label='Actual', linewidth=1)
+    axes[0].set_title(f'Motor {motor_id} - Position Step Response')
+    axes[0].set_ylabel('Position [turn]')
+    axes[0].grid(True)
+    axes[0].legend()
     
-    # 2. Motor0トルク出力
-    axes[0, 1].plot(time_data, df['motor0_torque'].values, 'g-', linewidth=1)
-    axes[0, 1].set_title('Motor0 Torque Output')
-    axes[0, 1].set_ylabel('Torque [Nm]')
-    axes[0, 1].grid(True)
+    # 2. Torque Output
+    axes[1].plot(time_data, torque_data, 'g-', linewidth=1)
+    axes[1].set_title(f'Motor {motor_id} - Torque Output')
+    axes[1].set_ylabel('Torque [Nm]')
+    axes[1].grid(True)
     
-    # 3. 出力位置エラー
-    axes[1, 0].plot(time_data, df['output_error_pos'].values, 'r-', linewidth=1)
-    axes[1, 0].set_title('Output Position Error')
-    axes[1, 0].set_ylabel('Error [turn]')
-    axes[1, 0].set_xlabel('Time [s]')
-    axes[1, 0].grid(True)
-    
-    # 4. Motor0位置
-    axes[1, 1].plot(time_data, df['motor0_pos'].values, 'b-', linewidth=1, label='Motor0')
-    axes[1, 1].plot(time_data, df['motor1_pos'].values, 'orange', linewidth=1, label='Motor1 (Fixed)')
-    axes[1, 1].set_title('Motor Positions')
-    axes[1, 1].set_ylabel('Position [turn]')
-    axes[1, 1].set_xlabel('Time [s]')
-    axes[1, 1].grid(True)
-    axes[1, 1].legend()
-    
-    plt.tight_layout()
-    
-    # グラフファイル保存
-    os.makedirs('fig', exist_ok=True)
-    base_filename = os.path.basename(csv_filename).replace('.csv', '_output_step_response.pdf')
-    temp_graph_filename = os.path.join('fig', base_filename)
-    plt.savefig(temp_graph_filename, dpi=300, bbox_inches='tight', format='pdf')
-    
-    # グラフを表示
-    plt.show()
+    # 3. Position Error
+    axes[2].plot(time_data, error_data, 'r-', linewidth=1)
+    axes[2].set_title(f'Motor {motor_id} - Position Error')
+    axes[2].set_ylabel('Error [turn]')
+    axes[2].set_xlabel('Time [s]')
+    axes[2].grid(True)
     
     # ステップ応答特性の数値解析
-    print(f"\n=== 出力軸ステップ応答特性 ===")
-    
-    target_data = df['output_setpoint_pos'].values
-    actual_data = df['output_pos'].values
-    error_data = df['output_error_pos'].values
+    print(f"\n=== Motor {motor_id} ステップ応答特性 ===")
     
     # ステップ変化点を検出
     target_diff = np.diff(target_data)
@@ -332,6 +336,34 @@ def analyze_and_plot_output_response(csv_filename):
             # 定常偏差
             steady_error = np.mean(error_data[step_end-100:step_end])
             print(f"  定常偏差: {steady_error:.4f} turn")
+
+def analyze_and_plot_step_response(csv_filename):
+    """CSVデータからステップ応答を解析してグラフを表示"""
+    print(f"ステップ応答解析を開始: {csv_filename}")
+    
+    # CSVファイル読み込み
+    df = pd.read_csv(csv_filename)
+    
+    # グラフ作成
+    fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+    fig.suptitle('Step Response Analysis Results', fontsize=16)
+    
+    # Motor 0 の解析
+    analyze_motor_response(df, 0, axes[:, 0])
+    
+    # Motor 1 の解析
+    analyze_motor_response(df, 1, axes[:, 1])
+    
+    plt.tight_layout()
+    
+    # 一時的にグラフファイルを作成（表示用）
+    os.makedirs('fig', exist_ok=True)
+    base_filename = os.path.basename(csv_filename).replace('.csv', '_step_response.pdf')
+    temp_graph_filename = os.path.join('fig', base_filename)
+    plt.savefig(temp_graph_filename, dpi=300, bbox_inches='tight', format='pdf')
+    
+    # グラフを表示
+    plt.show()
     
     # ユーザーに保存/破棄の選択を求める
     print("\n" + "="*60)
@@ -399,30 +431,30 @@ def analyze_and_plot_output_response(csv_filename):
 def print_current_config():
     """現在の設定を表示"""
     print("\n=== 現在の制御設定 ===")
-    print(f"出力軸ステップ振幅: {STEP_CONFIG['output_amplitude']} turn")
+    print(f"ステップパターン: {STEP_CONFIG['pattern_type']}")
+    print(f"Motor0 振幅: {STEP_CONFIG['motor0_amplitude']} turn ({'有効' if STEP_CONFIG['motor0_enabled'] else '無効'})")
+    print(f"Motor1 振幅: {STEP_CONFIG['motor1_amplitude']} turn ({'有効' if STEP_CONFIG['motor1_enabled'] else '無効'})")
     print(f"ステップ持続時間: {STEP_CONFIG['step_duration']} 秒")
     print(f"初期待機時間: {STEP_CONFIG['initial_wait']} 秒")
-    print(f"Motor1: 固定（トルク=0）")
     
     print("\n=== 可変減速機構設定 ===")
     print(f"減速機構の式: output_speed = motor1_speed/20 + motor0_speed * 163/2000")
-    print(f"Motor0減速比: {STEP_CONFIG['motor0_gear_ratio']:.6f} ({163}/{2000})")
-    print(f"Motor1減速比: {STEP_CONFIG['motor1_gear_ratio']:.3f} (1/20) - 固定時使用せず")
-    print(f"Motor1固定時: output_pos = motor0_pos * {STEP_CONFIG['motor0_gear_ratio']:.6f}")
+    print(f"Motor0減速比: {STEP_CONFIG['motor0_gear_ratio']:.3f} (1/20)")
+    print(f"Motor1減速比: {STEP_CONFIG['motor1_gear_ratio']:.6f} ({163}/{2000})")
     
     print("\n=== PIDゲイン設定 ===")
-    for controller_name, config in PID_CONFIG.items():
-        print(f"{controller_name}: kp={config['kp']}, ki={config['ki']}, kd={config['kd']}, max_output={config['max_output']}")
+    for motor, config in PID_CONFIG.items():
+        print(f"{motor}: kp={config['kp']}, ki={config['ki']}, kd={config['kd']}, max_output={config['max_output']}")
     
     print("\n=== 安全制限設定 ===")
     print(f"Motor0 最大トルク: {SAFETY_CONFIG['max_torque0']} Nm")
-    print(f"Motor1 最大トルク: {SAFETY_CONFIG['max_torque1']} Nm (固定)")
+    print(f"Motor1 最大トルク: {SAFETY_CONFIG['max_torque1']} Nm")
     print("=" * 50)
 
 def main():
     global pid_controllers, control_running
     
-    print("=== 出力軸ステップ制御 - Motor0のみ版 ===")
+    print("=== 可変減速機構ステップ制御 - 統合版 ===")
     
     # 現在の設定を表示
     print_current_config()
@@ -450,10 +482,10 @@ def main():
     odrv0.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
     odrv0.axis0.config.motor.torque_constant = 0.106
     
-    # Motor1: 位置制御モードで固定
+    # Motor1: トルク制御モード
     odrv1.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-    odrv1.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
-    odrv1.axis0.controller.input_pos = initial_position1  # 現在位置で固定
+    odrv1.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
+    odrv1.axis0.config.motor.torque_constant = 0.091
     
     print("モータ設定完了")
     
@@ -462,10 +494,16 @@ def main():
     
     pid_controllers = {
         'Motor0_Position': PIDController(
-            kp=PID_CONFIG['output_position']['kp'],
-            ki=PID_CONFIG['output_position']['ki'], 
-            kd=PID_CONFIG['output_position']['kd'],
-            max_output=PID_CONFIG['output_position']['max_output']
+            kp=PID_CONFIG['motor0']['kp'],
+            ki=PID_CONFIG['motor0']['ki'], 
+            kd=PID_CONFIG['motor0']['kd'],
+            max_output=PID_CONFIG['motor0']['max_output']
+        ),
+        'Motor1_Position': PIDController(
+            kp=PID_CONFIG['motor1']['kp'],
+            ki=PID_CONFIG['motor1']['ki'],
+            kd=PID_CONFIG['motor1']['kd'], 
+            max_output=PID_CONFIG['motor1']['max_output']
         )
     }
     print("PIDコントローラ初期化完了")
@@ -474,8 +512,8 @@ def main():
     data_log = {
         'time': [],
         'motor0': {'pos': [], 'vel': [], 'torque': [], 'setpoint_pos': [], 'error_pos': []},
-        'motor1': {'pos': [], 'vel': [], 'torque': []},
-        'output': {'pos': [], 'vel': [], 'setpoint_pos': [], 'error_pos': []}
+        'motor1': {'pos': [], 'vel': [], 'torque': [], 'setpoint_pos': [], 'error_pos': []},
+        'output': {'pos': [], 'vel': []}
     }
     
     # 制御パラメータ
@@ -484,7 +522,7 @@ def main():
     dt_target = 1.0 / control_frequency
     
     print("=== 制御開始 ===")
-    print("出力軸をステップ動作で制御します（Motor1は固定）")
+    print("可変減速機構の両モータでステップ制御を行います")
     print("リアルタイムゲイン調整: python pid_gain_adjuster_integrated.py")
     print("Ctrl+Cで終了")
     
@@ -504,30 +542,28 @@ def main():
             current_output_pos = odrv2.axis0.pos_vel_mapper.pos_rel - initial_output_position
             current_output_vel = odrv2.axis0.pos_vel_mapper.vel
             
-            # 出力軸の目標値を生成
-            target_output_pos = generate_output_step_targets(elapsed_time)
+            # 設定に基づいてステップ目標値を生成
+            target_pos0, target_pos1 = generate_step_targets(elapsed_time)
             
-            # 可変減速機構の式に基づいてMotor0の必要な動きを計算
+            # 可変減速機構の式に基づいて出力軸位置を計算
             # output_pos = motor1_pos/20 + motor0_pos * 163/2000
-            # Motor1固定の場合: output_pos = motor0_pos * 163/2000
-            # したがって: motor0_pos = output_pos / (163/2000) = output_pos * 2000/163
-            motor0_gear_ratio = STEP_CONFIG['motor0_gear_ratio']  # 163/2000
-            target_motor0_pos = target_output_pos / motor0_gear_ratio
+            motor0_gear_ratio = STEP_CONFIG['motor0_gear_ratio']  # 1/20
+            motor1_gear_ratio = STEP_CONFIG['motor1_gear_ratio']  # 163/2000
+            calculated_output_pos = current_pos1 * motor1_gear_ratio + current_pos0 * motor0_gear_ratio
             
-            # Motor0位置制御によるPID計算
-            # 出力軸の目標値に基づいてMotor0の目標位置を設定
-            total_torque0, motor0_pos_error, _, _, _ = pid_controllers['Motor0_Position'].update(target_motor0_pos, current_pos0)
+            # PID制御計算（両モータ）
+            total_torque0, pos_error0, _, _, _ = pid_controllers['Motor0_Position'].update(target_pos0, current_pos0)
+            total_torque1, pos_error1, _, _, _ = pid_controllers['Motor1_Position'].update(target_pos1, current_pos1)
             
-            # 出力軸のエラーも記録用に計算
-            output_pos_error = target_output_pos - current_output_pos
-            
-            # トルク制限
+            # トルク制限（設定ファイルから読み込み）
             max_torque0 = SAFETY_CONFIG['max_torque0']
+            max_torque1 = SAFETY_CONFIG['max_torque1']
             total_torque0 = max(min(total_torque0, max_torque0), -max_torque0)
+            total_torque1 = max(min(total_torque1, max_torque1), -max_torque1)
             
             # モータ制御
             odrv0.axis0.controller.input_torque = total_torque0
-            # Motor1は位置制御で固定されているため、トルク指令は不要
+            odrv1.axis0.controller.input_torque = total_torque1
             
             # データ記録（スレッドセーフ）
             with data_lock:
@@ -535,23 +571,23 @@ def main():
                 data_log['motor0']['pos'].append(current_pos0)
                 data_log['motor0']['vel'].append(current_vel0)
                 data_log['motor0']['torque'].append(total_torque0)
-                data_log['motor0']['setpoint_pos'].append(target_motor0_pos)
-                data_log['motor0']['error_pos'].append(motor0_pos_error)
+                data_log['motor0']['setpoint_pos'].append(target_pos0)
+                data_log['motor0']['error_pos'].append(pos_error0)
                 
                 data_log['motor1']['pos'].append(current_pos1)
                 data_log['motor1']['vel'].append(current_vel1)
-                data_log['motor1']['torque'].append(0.0)  # 固定なのでトルクは記録なし
+                data_log['motor1']['torque'].append(total_torque1)
+                data_log['motor1']['setpoint_pos'].append(target_pos1)
+                data_log['motor1']['error_pos'].append(pos_error1)
                 
-                data_log['output']['pos'].append(current_output_pos)
+                data_log['output']['pos'].append(calculated_output_pos)
                 data_log['output']['vel'].append(current_output_vel)
-                data_log['output']['setpoint_pos'].append(target_output_pos)
-                data_log['output']['error_pos'].append(output_pos_error)
             
             loop_count += 1
             
             # ステータス表示
             if loop_count % 500 == 0:
-                print(f"時間: {elapsed_time:.2f}s | M0: {current_pos0:.3f}pos(目標:{target_motor0_pos:.3f}) | M1: {current_pos1:.3f}pos(固定) | 出力: {current_output_pos:.3f}pos(目標:{target_output_pos:.3f})")
+                print(f"時間: {elapsed_time:.2f}s | M0: {current_pos0:.3f}pos(目標:{target_pos0:.3f}) | M1: {current_pos1:.3f}pos(目標:{target_pos1:.3f}) | 出力: {calculated_output_pos:.3f}pos")
             
             # 制御周波数の維持
             loop_end_time = time.time()
@@ -566,6 +602,7 @@ def main():
     finally:
         # モータ停止
         odrv0.axis0.controller.input_torque = 0
+        odrv1.axis0.controller.input_torque = 0
         # モータアイドル化
         odrv0.axis0.requested_state = AxisState.IDLE
         odrv1.axis0.requested_state = AxisState.IDLE
@@ -573,16 +610,16 @@ def main():
         # データ保存
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs('csv', exist_ok=True)
-        csv_filename = f'csv/output_step_motor0_only_{timestamp}.csv'
+        csv_filename = f'csv/integrated_pid_torque_{timestamp}.csv'
         
         # CSVファイル作成
         with open(csv_filename, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
                 'time', 
-                'motor0_pos', 'motor0_vel', 'motor0_torque', 'motor0_setpoint_pos', 'motor0_error_pos',
-                'motor1_pos', 'motor1_vel', 'motor1_torque',
-                'output_pos', 'output_vel', 'output_setpoint_pos', 'output_error_pos'
+                'motor0_pos', 'motor0_vel', 'motor0_torque', 'motor0_setpoint_pos', 'motor0_setpoint_vel', 'motor0_error_pos', 'motor0_error_vel',
+                'motor1_pos', 'motor1_vel', 'motor1_torque', 'motor1_setpoint_pos', 'motor1_setpoint_vel', 'motor1_error_pos', 'motor1_error_vel',
+                'output_pos', 'output_vel'
             ])
             
             with data_lock:
@@ -590,10 +627,10 @@ def main():
                     writer.writerow([
                         data_log['time'][i],
                         data_log['motor0']['pos'][i], data_log['motor0']['vel'][i], data_log['motor0']['torque'][i],
-                        data_log['motor0']['setpoint_pos'][i], data_log['motor0']['error_pos'][i],
+                        data_log['motor0']['setpoint_pos'][i], 0, data_log['motor0']['error_pos'][i], 0,
                         data_log['motor1']['pos'][i], data_log['motor1']['vel'][i], data_log['motor1']['torque'][i],
-                        data_log['output']['pos'][i], data_log['output']['vel'][i], 
-                        data_log['output']['setpoint_pos'][i], data_log['output']['error_pos'][i]
+                        data_log['motor1']['setpoint_pos'][i], 0, data_log['motor1']['error_pos'][i], 0,
+                        data_log['output']['pos'][i], data_log['output']['vel'][i]
                     ])
         
         # ゲイン設定保存
@@ -604,8 +641,8 @@ def main():
         
         # ステップ応答解析とグラフ表示
         try:
-            print("\n=== 出力軸ステップ応答解析とグラフ表示 ===")
-            final_graph_path, final_csv_path = analyze_and_plot_output_response(csv_filename)
+            print("\n=== ステップ応答解析とグラフ表示 ===")
+            final_graph_path, final_csv_path = analyze_and_plot_step_response(csv_filename)
             
             # 最終的な保存状況を報告
             print("\n=== 最終的なファイル状況 ===")
