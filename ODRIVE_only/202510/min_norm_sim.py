@@ -188,6 +188,7 @@ def simulate(p: Params, save_dir: Path):
     # Plots
     def plot_and_save(x, y, title, ylabel, fname, label1=None, label2=None):
         plt.figure(figsize=(8,4))
+        plt.rcParams['font.family'] = 'Times New Roman'
         ax = plt.gca()
         # 色分け: theta1/tau1=red, theta2/tau2=green, 他はデフォルト
         if label2 is None:
@@ -199,12 +200,12 @@ def simulate(p: Params, save_dir: Path):
             plt.plot(x, y[1], label=label2 if label2 else None, color=color2)
         plt.xlabel("Time [s]")
         plt.ylabel(ylabel)
-        plt.title(title)
+        # タイトルなし
         if label1 or label2:
             plt.legend()
         # グリッド線なし、目盛り内向き
         plt.grid(False)
-        ax.tick_params(axis='both', direction='in', length=6, width=1.2)
+        ax.tick_params(axis='both', direction='in', length=6, width=0.8)
         plt.tight_layout()
         out = save_dir / fname
         plt.savefig(out, dpi=200, bbox_inches="tight")

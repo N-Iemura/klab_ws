@@ -212,7 +212,7 @@ def analyze_and_plot_step_response(csv_filename):
     # グリッド線なし、目盛り内向き
     for ax in axes:
         ax.grid(False)
-        ax.tick_params(axis='both', direction='in', length=6, width=1.2)
+        ax.tick_params(axis='both', direction='in', length=6, width=0.8)
 
     plt.tight_layout()
 
