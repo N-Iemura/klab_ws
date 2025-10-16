@@ -207,8 +207,9 @@ def simulate(p: Params, save_dir: Path):
         plt.grid(False)
         ax.tick_params(axis='both', direction='in', length=6, width=0.8)
         plt.tight_layout()
-        out = save_dir / fname
-        plt.savefig(out, dpi=200, bbox_inches="tight")
+        # PDF保存に変更
+        out = save_dir / (Path(fname).stem + '.pdf')
+        plt.savefig(out, dpi=200, bbox_inches="tight", format='pdf')
         plt.close()
         return out
 
