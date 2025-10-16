@@ -173,6 +173,7 @@ def analyze_and_plot_step_response(csv_filename):
     print(f"ステップ応答解析を開始: {csv_filename}")
     df = pd.read_csv(csv_filename)
 
+
     fig, axes = plt.subplots(4, 1, figsize=(12, 12))
     fig.suptitle('Output Step Response (θ) and Torques')
 
@@ -182,25 +183,36 @@ def analyze_and_plot_step_response(csv_filename):
     tau_out = df['tau_out_ref'].values
     tau0 = df['motor0_torque'].values
     tau1 = df['motor1_torque'].values
+    theta1 = df['motor0_pos'].values
+    theta2 = df['motor1_pos'].values
 
     # θ
     axes[0].plot(t, theta_ref, '--', label='θ_ref')
     axes[0].plot(t, theta, '-', label='θ')
-    axes[0].set_ylabel('θ [turn]'); axes[0].legend(); axes[0].grid(True)
+    axes[0].set_ylabel('θ [turn]')
+    axes[0].legend()
 
     # τ_out
     axes[1].plot(t, tau_out, '-')
-    axes[1].set_ylabel('τ_out [Nm]'); axes[1].grid(True)
+    axes[1].set_ylabel('τ_out [Nm]')
 
     # τ0, τ1
-    axes[2].plot(t, tau0, label='τ0')
-    axes[2].plot(t, tau1, label='τ1')
-    axes[2].set_ylabel('Torque [Nm]'); axes[2].legend(); axes[2].grid(True)
+    axes[2].plot(t, tau0, color='red', label='τ1')
+    axes[2].plot(t, tau1, color='green', label='τ2')
+    axes[2].set_ylabel('Torque [Nm]')
+    axes[2].legend()
 
-    # 内部姿勢（任意で q0,q1）
-    axes[3].plot(t, df['motor0_pos'].values, label='θ1')
-    axes[3].plot(t, df['motor1_pos'].values, label='θ2')
-    axes[3].set_xlabel('Time [s]'); axes[3].set_ylabel('Joint [turn]'); axes[3].legend(); axes[3].grid(True)
+    # 内部姿勢 θ1, θ2
+    axes[3].plot(t, theta1, color='red', label='θ1')
+    axes[3].plot(t, theta2, color='green', label='θ2')
+    axes[3].set_xlabel('Time [s]')
+    axes[3].set_ylabel('Joint [turn]')
+    axes[3].legend()
+
+    # グリッド線なし、目盛り内向き
+    for ax in axes:
+        ax.grid(False)
+        ax.tick_params(axis='both', direction='in', length=6, width=1.2)
 
     plt.tight_layout()
 
