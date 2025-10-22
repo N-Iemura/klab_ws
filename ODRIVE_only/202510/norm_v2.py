@@ -109,10 +109,13 @@ def project_null(A):
 
 
 def min_norm_torque_split(A, tau_out):
-    """最小ノルムのトルク配分: τ* = A^T τ_out (2,)
-    tau_out: スカラー
-    """
-    return (A.T * float(tau_out)).reshape(2)
+    """最小ノルムのトルク配分: τ* = A^T (A A^T)^(-1) τ_out"""
+    At = A.T
+    s = float(A @ At)  # = a1^2 + a2^2
+    if s < 1e-8:
+        raise ValueError("Mechanism matrix A is near-singular.")
+    scale = float(tau_out) / s
+    return (At * scale).reshape(2)
 
 # ==================================================================================
 # 目標生成
