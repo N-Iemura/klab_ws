@@ -55,18 +55,18 @@ STEP_CONFIG = {
 }
 
 # 出力θのPIDゲイン（外側）
-OUTPUT_PID = {'kp': 2.2, 'ki': 0.0, 'kd': 0.2, 'max_output': 100.0}
+OUTPUT_PID = {'kp': 1.0, 'ki': 0.0, 'kd': 0.1, 'max_output': 1.0}
 
 # ヌル空間安定化ゲイン
 NULLSPACE_CONFIG = {
-    'Knu_diag': [0.1, 0.1],   # 粘性ダンピング（対角）
+    'Knu_diag': [0.3, 0.3],   # 粘性ダンピング（対角）
     'Kq_diag':  [0.0, 0.0],   # 姿勢戻し（まずは0）
     'q_ref':    [0.0, 0.0],   # 望ましい関節姿勢
 }
 
 # 安全制限
 SAFETY_CONFIG = {
-    'max_torque0': 5.0,      # T-motor 最大トルク[Nm]
+    'max_torque0': 1.0,      # T-motor 最大トルク[Nm]
     'max_torque1': 0.1,      # Maxon 最大トルク[Nm]
 }
 
