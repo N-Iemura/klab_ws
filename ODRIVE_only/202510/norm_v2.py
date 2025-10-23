@@ -50,24 +50,43 @@ else:
 # ==================================================================================
 STEP_CONFIG = {
     'initial_wait': 1.0,        # 最初のステップまでの待機[秒]
-    'step_duration': 3.0,       # 各ステップの持続[秒]
-    'output_amplitude': 0.3,    # 出力θのステップ振幅[turn]
+    'step_duration': 20.0,       # 各ステップの持続[秒]
+    'output_amplitude': 0.2,    # 出力θのステップ振幅[turn]
 }
 
-# 出力θのPIDゲイン（外側）
-OUTPUT_PID = {'kp': 2.2, 'ki': 0.0, 'kd': 0.2, 'max_output': 100.0}
+# 制御モード: 'output_pid' は既存の単一PID, 'per_motor_pid' はモータ毎PID
+CONTROL_MODE = 'per_motor_pid'
+
+# 出力θのPIDゲイン（外側）※CONTROL_MODE='output_pid' のとき使用
+OUTPUT_PID = {'kp': 1.0, 'ki': 0.8, 'kd': 0.00, 'max_output': 200.0}
+
+# per_motor_pid モードでも外側PIDを併用する場合は True
+ENABLE_OUTER_PID_IN_PER_MOTOR = False
+
+# 各モータ用PIDゲイン（CONTROL_MODE='per_motor_pid' のとき使用）
+MOTOR_PID = {
+    'motor0': {'kp': 0.31, 'ki': 0.2, 'kd': 0.02, 'max_output': 5.5},   # T-motor
+    'motor1': {'kp': 0.05, 'ki': 0.02, 'kd': 0.002, 'max_output': 0.2}     # Maxon
+}
 
 # ヌル空間安定化ゲイン
 NULLSPACE_CONFIG = {
-    'Knu_diag': [0.1, 0.1],   # 粘性ダンピング（対角）
+    'Knu_diag': [0.0, 0.0],   # 粘性ダンピング（対角）
     'Kq_diag':  [0.0, 0.0],   # 姿勢戻し（まずは0）
     'q_ref':    [0.0, 0.0],   # 望ましい関節姿勢
 }
 
+# 片側モータを固定する場合の設定（'motor0' / 'motor1' / None）
+FREEZE_CONFIG = {
+    'motor_to_freeze': None,
+    'kp': 1.0,
+    'kd': 0.05,
+}
+
 # 安全制限
 SAFETY_CONFIG = {
-    'max_torque0': 5.0,      # T-motor 最大トルク[Nm]
-    'max_torque1': 0.1,      # Maxon 最大トルク[Nm]
+    'max_torque0': 6.0,      # T-motor 最大トルク[Nm]
+    'max_torque1': 0.2,      # Maxon 最大トルク[Nm]
 }
 
 # ODrive接続設定（必要に応じて変更）
@@ -83,6 +102,12 @@ ODRIVE_TORQUE_CONSTANT = {
 
 # 制御周期 [Hz]
 CONTROL_FREQUENCY = 200
+
+# 出力ファイル関連
+CSV_DIR = 'csv'
+FIG_DIR = 'fig'
+DATA_FILENAME_PREFIX = 'norm2_hw'
+PLOT_FILENAME_SUFFIX = '_plot.pdf'
 
 # ==================================================================================
 # ユーティリティ: 機構行列 / 最小ノルム配分 / ヌル空間射影
@@ -117,6 +142,145 @@ def min_norm_torque_split(A, tau_out):
     scale = float(tau_out) / s
     return (At * scale).reshape(2)
 
+
+MOTOR_OUTPUT_GAINS = np.array([20.0, 2000.0 / 163.0], dtype=float)
+
+
+def motor_torque_to_output(tau_vec):
+    """モータトルクから出力トルクへ変換: τ_out = τ0*20 + τ1*(2000/163)"""
+    tau_vec = np.asarray(tau_vec, dtype=float).reshape(2)
+    return float(np.dot(MOTOR_OUTPUT_GAINS, tau_vec))
+
+
+def _solve_torque_with_limits(A, tau_desired, torque_limits, tau_preferred=None, tol=1e-9):
+    """
+    A:              1x2 行列
+    tau_desired:    望ましい出力トルク (スカラー)
+    torque_limits:  [limit0, limit1]
+    tau_preferred:  ヌル空間成分など、可能なら近づけたい候補
+    戻り値: (tau_solution[2], 実現された出力トルク)
+    """
+    A = np.asarray(A, dtype=float).reshape(1, 2)
+    limits = np.asarray(torque_limits, dtype=float)
+    a1, a2 = A[0]
+
+    # フィージビリティチェック: 角の値から達成可能な出力トルク範囲を把握
+    corners = np.array([
+        [ limits[0],  limits[1]],
+        [ limits[0], -limits[1]],
+        [-limits[0],  limits[1]],
+        [-limits[0], -limits[1]],
+    ], dtype=float)
+    tau_corner_vals = corners @ A.T  # shape (4,1)
+    tau_min = float(np.min(tau_corner_vals))
+    tau_max = float(np.max(tau_corner_vals))
+    tau_target = float(np.clip(tau_desired, tau_min, tau_max))
+
+    # 最小ノルム解（等式を満たす）
+    tau_base = min_norm_torque_split(A, tau_target)
+    if tau_preferred is None:
+        tau_preferred = tau_base.copy()
+    tau_preferred = np.asarray(tau_preferred, dtype=float).reshape(2)
+
+    # 既に制限内なら終了
+    if np.all(np.abs(tau_base) <= limits + 1e-9):
+        return tau_base, tau_target
+
+    # 等式を維持したままボックスへ射影（ヌル空間方向を利用）
+    n = np.array([a2, -a1], dtype=float)  # ヌル空間基底
+    n_norm_sq = float(np.dot(n, n))
+
+    def project_with_preference(pref):
+        if n_norm_sq < tol:
+            return None
+        alpha_opt = float(np.dot(n, pref - tau_base) / n_norm_sq)
+        alpha_low, alpha_high = -np.inf, np.inf
+        for i in range(2):
+            n_i = n[i]
+            if abs(n_i) < tol:
+                # この軸では調整できない -> ベースが制限を超えるなら不可
+                if abs(tau_base[i]) <= limits[i] + 1e-9:
+                    continue
+                return None
+            low = (-limits[i] - tau_base[i]) / n_i
+            high = (limits[i] - tau_base[i]) / n_i
+            if low > high:
+                low, high = high, low
+            alpha_low = max(alpha_low, low)
+            alpha_high = min(alpha_high, high)
+            if alpha_low > alpha_high:
+                return None
+        alpha = float(min(max(alpha_opt, alpha_low), alpha_high))
+        tau_candidate = tau_base + alpha * n
+        if np.all(np.abs(tau_candidate) <= limits + 1e-8):
+            return tau_candidate
+        return None
+
+    candidate = project_with_preference(tau_preferred)
+    if candidate is not None:
+        return candidate, tau_target
+
+    candidate = project_with_preference(tau_base)
+    if candidate is not None:
+        return candidate, tau_target
+
+    # それでも見つからない場合は、片方のモータを限界に固定して求める
+    best = None
+    eps = tol
+
+    def evaluate_candidate(tau_vec):
+        nonlocal best
+        if tau_vec is None:
+            return
+        if not np.all(np.abs(tau_vec) <= limits + 1e-6):
+            return
+        tau_out = float(A @ tau_vec.reshape(2, 1))
+        err_out = abs(tau_out - tau_target)
+        pref_err = np.linalg.norm(tau_vec - tau_preferred)
+        score = (err_out, pref_err)
+        if best is None or score < best[0]:
+            best = (score, tau_vec, tau_out)
+
+    # motor0 を限界に貼り付け
+    if abs(a2) > eps:
+        for s0 in (-1, 1):
+            t0 = s0 * limits[0]
+            t1 = (tau_target - a1 * t0) / a2
+            if abs(t1) <= limits[1] + 1e-6:
+                evaluate_candidate(np.array([t0, t1], dtype=float))
+
+    # motor1 を限界に貼り付け
+    if abs(a1) > eps:
+        for s1 in (-1, 1):
+            t1 = s1 * limits[1]
+            t0 = (tau_target - a2 * t1) / a1
+            if abs(t0) <= limits[0] + 1e-6:
+                evaluate_candidate(np.array([t0, t1], dtype=float))
+
+    # それでも不可なら角の中で最も出力が近いものを採用
+    if best is None:
+        for vec in corners:
+            evaluate_candidate(vec)
+
+    if best is None:
+        # 理論上ここには来ないはずだが、最悪は単純クリップ
+        tau_fallback = np.clip(tau_base, -limits, limits)
+        tau_out = float(A @ tau_fallback.reshape(2, 1))
+        return tau_fallback, tau_out
+
+    _, tau_vec, tau_out = best
+    return tau_vec, tau_out
+
+
+def project_torque_to_limits(A, tau_candidate, torque_limits):
+    """候補トルクを、出力トルクを極力維持しつつ安全範囲へ投影"""
+    tau_candidate = np.asarray(tau_candidate, dtype=float).reshape(2)
+    desired_output = float((A @ tau_candidate.reshape(2, 1)).item())
+    tau_res, _ = _solve_torque_with_limits(
+        A, desired_output, torque_limits, tau_preferred=tau_candidate
+    )
+    return tau_res
+
 # ==================================================================================
 # 目標生成
 # ==================================================================================
@@ -133,10 +297,6 @@ def generate_output_step(elapsed_time):
     cyc = (elapsed_time - initial_wait) % (step_duration * 4)
     if cyc < step_duration:
         return +amp
-    elif cyc < step_duration * 2:
-        return 0.0
-    elif cyc < step_duration * 3:
-        return -amp
     else:
         return 0.0
 
@@ -183,7 +343,7 @@ def analyze_and_plot_step_response(csv_filename):
     t = df['time'].values
     theta_ref = df['theta_ref'].values
     theta = df['output_pos'].values
-    tau_out = df['tau_out_ref'].values
+    tau_out_calc = df['tau_out'].values if 'tau_out' in df.columns else None
     tau0 = df['motor0_torque'].values
     tau1 = df['motor1_torque'].values
     theta1 = df['motor0_pos'].values
@@ -196,8 +356,13 @@ def analyze_and_plot_step_response(csv_filename):
     axes[0].legend()
 
     # τ_out
-    axes[1].plot(t, tau_out, '-')
     axes[1].set_ylabel('τ_out [Nm]')
+    plotted = False
+    if tau_out_calc is not None:
+        axes[1].plot(t, tau_out_calc, '-', label='τ_out')
+        plotted = True
+    if plotted:
+        axes[1].legend()
 
     # τ0, τ1
     axes[2].plot(t, tau0, color='red', label='τ1')
@@ -219,9 +384,10 @@ def analyze_and_plot_step_response(csv_filename):
 
     plt.tight_layout()
 
-    os.makedirs('fig', exist_ok=True)
-    base = os.path.basename(csv_filename).replace('.csv', '_step_response.pdf')
-    fig_path = os.path.join('fig', base)
+    os.makedirs(FIG_DIR, exist_ok=True)
+    base_name = os.path.splitext(os.path.basename(csv_filename))[0]
+    fig_filename = f"{base_name}{PLOT_FILENAME_SUFFIX}"
+    fig_path = os.path.join(FIG_DIR, fig_filename)
     plt.savefig(fig_path, dpi=300, bbox_inches='tight', format='pdf')
     plt.show()
 
@@ -305,7 +471,35 @@ def main():
     print("モータ設定完了")
 
     # ---- コントローラ ----
-    output_pid = PIDController(kp=OUTPUT_PID['kp'], ki=OUTPUT_PID['ki'], kd=OUTPUT_PID['kd'], max_output=OUTPUT_PID['max_output'])
+    output_pid = None
+    motor_pid = {}
+    if CONTROL_MODE == 'output_pid':
+        output_pid = PIDController(
+            kp=OUTPUT_PID['kp'],
+            ki=OUTPUT_PID['ki'],
+            kd=OUTPUT_PID['kd'],
+            max_output=OUTPUT_PID['max_output'],
+            min_output=-OUTPUT_PID['max_output'],
+        )
+    elif CONTROL_MODE == 'per_motor_pid':
+        if ENABLE_OUTER_PID_IN_PER_MOTOR:
+            output_pid = PIDController(
+                kp=OUTPUT_PID['kp'],
+                ki=OUTPUT_PID['ki'],
+                kd=OUTPUT_PID['kd'],
+                max_output=OUTPUT_PID['max_output'],
+                min_output=-OUTPUT_PID['max_output'],
+            )
+        for key, cfg in MOTOR_PID.items():
+            motor_pid[key] = PIDController(
+                kp=cfg['kp'],
+                ki=cfg['ki'],
+                kd=cfg['kd'],
+                max_output=cfg['max_output'],
+                min_output=-cfg['max_output'],
+            )
+    else:
+        raise ValueError(f"未知のCONTROL_MODE: {CONTROL_MODE}")
 
     # ---- ログ ----
     data_lock = threading.Lock()
@@ -315,13 +509,21 @@ def main():
         'motor1': {'pos': [], 'vel': [], 'torque': []},
         'output': {'pos': [], 'vel': []},
         'theta_ref': [],
-        'tau_out_ref': [],
+        'theta_ctrl': [],
+        'tau_out': [],
     }
 
     # ---- ヌル空間ゲイン ----
     Knu = np.diag(NULLSPACE_CONFIG['Knu_diag'])
     Kq  = np.diag(NULLSPACE_CONFIG['Kq_diag'])
     q_ref = np.array(NULLSPACE_CONFIG['q_ref'])
+    freeze_idx = {'motor0': 0, 'motor1': 1}.get(FREEZE_CONFIG['motor_to_freeze'])
+    freeze_kp = FREEZE_CONFIG['kp']
+    freeze_kd = FREEZE_CONFIG['kd']
+    torque_limits = np.array([
+        SAFETY_CONFIG['max_torque0'],
+        SAFETY_CONFIG['max_torque1'],
+    ], dtype=float)
 
     start_time = time.time()
     dt_target = 1.0 / CONTROL_FREQUENCY
@@ -347,21 +549,74 @@ def main():
             q = np.array([q0, q1])
             qdot = np.array([dq0, dq1])
 
-            # ---- 機構行列・射影 ----
+            # ---- 機構行列 ----
             A = get_A(q)
-            PN = project_null(A)
+            tau_cmd_prelimit = np.zeros(2)
+            tau_cmd = np.zeros(2)
+            theta_ctrl_cmd = theta_ref - qout
 
-            # ---- 出力PID → 望ましい出力トルク ----
-            tau_out_ref, _, _, _, _ = output_pid.update(theta_ref, qout)
+            if CONTROL_MODE == 'output_pid':
+                tau_out_desired, _, _, _, _ = output_pid.update(theta_ref, qout)
+                if freeze_idx is None:
+                    PN = project_null(A)
+                    tau_min = min_norm_torque_split(A, tau_out_desired)
+                    tau_null = (-Knu @ (PN @ qdot) - Kq @ (PN @ (q - q_ref)))
+                    tau_cmd_prelimit = tau_min + tau_null
+                else:
+                    active_idx = 1 - freeze_idx
+                    a_active = float(A[0, active_idx])
+                    tau_cmd_prelimit = np.zeros(2)
+                    if abs(a_active) > 1e-8:
+                        tau_cmd_prelimit[active_idx] = float(tau_out_desired / a_active)
+                    else:
+                        tau_cmd_prelimit[active_idx] = 0.0
+                    tau_cmd_prelimit[freeze_idx] = float(-freeze_kp * q[freeze_idx] - freeze_kd * qdot[freeze_idx])
 
-            # ---- 最小ノルム配分 + ヌル空間安定化 ----
-            tau_min = min_norm_torque_split(A, tau_out_ref)
-            tau_null = (-Knu @ (PN @ qdot) - Kq @ (PN @ (q - q_ref)))
-            tau_cmd = tau_min + tau_null
+            elif CONTROL_MODE == 'per_motor_pid':
+                theta_err_raw = theta_ref - qout
+                theta_ctrl = theta_err_raw
+                if output_pid is not None:
+                    theta_ctrl, _, _, _, _ = output_pid.update(theta_ref, qout)
+                At = A.T
+                s = float(A @ At)
+                if s < 1e-8:
+                    raise ValueError("Mechanism matrix A is near-singular.")
 
-            # ---- 飽和 ----
-            tau_cmd[0] = float(np.clip(tau_cmd[0], -SAFETY_CONFIG['max_torque0'], SAFETY_CONFIG['max_torque0']))
-            tau_cmd[1] = float(np.clip(tau_cmd[1], -SAFETY_CONFIG['max_torque1'], SAFETY_CONFIG['max_torque1']))
+                delta_q = np.zeros(2)
+                if freeze_idx is None:
+                    delta_q = (At / s).flatten() * theta_ctrl
+                else:
+                    active_idx = 1 - freeze_idx
+                    a_active = float(A[0, active_idx])
+                    if abs(a_active) > 1e-8:
+                        delta_q[active_idx] = theta_ctrl / a_active
+                    else:
+                        delta_q[active_idx] = 0.0
+
+                q_des = q_ref + delta_q
+
+                keys = ['motor0', 'motor1']
+                for idx, key in enumerate(keys):
+                    if freeze_idx is not None and idx == freeze_idx:
+                        tau_cmd_prelimit[idx] = float(-freeze_kp * q[idx] - freeze_kd * qdot[idx])
+                    else:
+                        pid = motor_pid[key]
+                        u, _, _, _, _ = pid.update(q_des[idx], q[idx])
+                        tau_cmd_prelimit[idx] = float(u)
+
+                if freeze_idx is None:
+                    PN = project_null(A)
+                    tau_null = (-Knu @ (PN @ qdot) - Kq @ (PN @ (q - q_ref)))
+                    tau_cmd_prelimit += tau_null
+
+                theta_ctrl_cmd = float(theta_ctrl)
+
+            else:
+                raise RuntimeError(f"未対応のCONTROL_MODE: {CONTROL_MODE}")
+
+            # ---- 飽和を考慮した再割り当て ----
+            tau_cmd = project_torque_to_limits(A, tau_cmd_prelimit, torque_limits)
+            tau_out_disp = motor_torque_to_output(tau_cmd)
 
             # ---- 出力 ----
             odrv0.axis0.controller.input_torque = tau_cmd[0]
@@ -379,7 +634,8 @@ def main():
                 data_log['output']['pos'].append(qout)
                 data_log['output']['vel'].append(dqout)
                 data_log['theta_ref'].append(theta_ref)
-                data_log['tau_out_ref'].append(float(tau_out_ref))
+                data_log['theta_ctrl'].append(float(theta_ctrl_cmd))
+                data_log['tau_out'].append(float(tau_out_disp))
 
             # ---- タイミング調整 ----
             dt = time.time() - t0
@@ -399,9 +655,9 @@ def main():
             pass
 
         # ---- CSV保存 ----
-        os.makedirs('csv', exist_ok=True)
+        os.makedirs(CSV_DIR, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        csv_filename = f'csv/integrated_pid_torque_min_norm_{timestamp}.csv'
+        csv_filename = os.path.join(CSV_DIR, f"{DATA_FILENAME_PREFIX}_{timestamp}.csv")
         with open(csv_filename, 'w', newline='') as f:
             w = csv.writer(f)
             w.writerow([
@@ -409,7 +665,7 @@ def main():
                 'motor0_pos','motor0_vel','motor0_torque',
                 'motor1_pos','motor1_vel','motor1_torque',
                 'output_pos','output_vel',
-                'theta_ref','tau_out_ref'
+                'theta_ref','theta_ctrl','tau_out'
             ])
             for i in range(len(data_log['time'])):
                 w.writerow([
@@ -417,7 +673,7 @@ def main():
                     data_log['motor0']['pos'][i], data_log['motor0']['vel'][i], data_log['motor0']['torque'][i],
                     data_log['motor1']['pos'][i], data_log['motor1']['vel'][i], data_log['motor1']['torque'][i],
                     data_log['output']['pos'][i], data_log['output']['vel'][i],
-                    data_log['theta_ref'][i], data_log['tau_out_ref'][i]
+                    data_log['theta_ref'][i], data_log['theta_ctrl'][i], data_log['tau_out'][i]
                 ])
         print(f"データ保存完了: {csv_filename}")
 
