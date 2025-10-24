@@ -48,11 +48,60 @@ else:
 # ==================================================================================
 # 設定
 # ==================================================================================
-STEP_CONFIG = {
-    'initial_wait': 1.0,        # 最初のステップまでの待機[秒]
-    'step_duration': 20.0,       # 各ステップの持続[秒]
-    'output_amplitude': 0.2,    # 出力θのステップ振幅[turn]
+REFERENCE_PROFILE = {
+    'active_profile': 'ramp_step',  # 'step', 'sine', 'chirp'
+    'file_label': None,        # CSV/グラフの識別子に使う任意文字列
+    'step': {
+        'initial_wait': 1.0,        # 最初のステップまでの待機[秒]
+        'step_duration': 20.0,      # 各ステップの持続[秒]
+        'output_amplitude': 0.2,    # 出力θ振幅[turn]
+        'offset': 0.0,
+    },
+    'sine': {
+        'initial_wait': 1.0,        # 開始前の待機[秒]
+        'output_amplitude': 0.1,   # 正弦波振幅[turn]
+        'frequency_hz': 0.1,       # 周波数[Hz]
+        'offset': 0.0,              # バイアス
+    },
+    'chirp': {
+        'initial_wait': 1.0,
+        'output_amplitude': 0.2,
+        'start_frequency_hz': 0.02,
+        'end_frequency_hz': 0.2,
+        'duration': 60.0,           # 開始からこの秒数で終端周波数へ
+        'offset': 0.0,
+    },
+    'ramp': {
+        'initial_wait': 1.0,
+        'start_value': 0.0,
+        'end_value': 2.0,
+        'ramp_duration': 2.0,      # [s] start -> end の時間
+        'hold_duration': 5.0,       # [s] end_value で保持
+        'return_duration': 0.0,     # [s] >0 のとき start_value へ線形で戻す
+        'repeat': True,             # True なら周期的に繰り返す
+    },
+    'ramp_step': {
+        'initial_wait': 1.0,
+        'start_value': 0.0,
+        'end_value': 0.5,
+        'ramp_duration': 2.0,
+        'hold_duration': 5.0,
+        'return_duration': 0.0,
+        'repeat': True,
+        'step': {
+            'amplitude': 0.1,       # 追加ステップ振幅[turn]
+            'duration': 1.0,        # ステップ保持時間[秒]
+            'start_after': 0.0,     # 初期待機後、この秒数経過で最初のステップ
+            'period': 3.0,          # 周期的に繰り返す場合の周期[秒]
+            'repeat': False,        # Falseで一度だけステップ
+            'offset_in_cycle': 0.0, # 周期内でステップを入れる位置[秒]
+            'align_to_ramp_end': True,  # Trueならランプ完了直後に挿入
+        },
+    },
 }
+
+# 後方互換性用のエイリアス
+STEP_CONFIG = REFERENCE_PROFILE['step']
 
 # 制御モード: 'output_pid' は既存の単一PID, 'per_motor_pid' はモータ毎PID
 CONTROL_MODE = 'per_motor_pid'
@@ -66,7 +115,7 @@ ENABLE_OUTER_PID_IN_PER_MOTOR = False
 # 各モータ用PIDゲイン（CONTROL_MODE='per_motor_pid' のとき使用）
 MOTOR_PID = {
     'motor0': {'kp': 0.31, 'ki': 0.2, 'kd': 0.02, 'max_output': 5.5},   # T-motor
-    'motor1': {'kp': 0.05, 'ki': 0.02, 'kd': 0.002, 'max_output': 0.2}     # Maxon
+    'motor1': {'kp': 0.1, 'ki': 0.02, 'kd': 0.002, 'max_output': 0.2}     # Maxon
 }
 
 # ヌル空間安定化ゲイン
@@ -285,20 +334,165 @@ def project_torque_to_limits(A, tau_candidate, torque_limits):
 # 目標生成
 # ==================================================================================
 
-def generate_output_step(elapsed_time):
-    """出力(θ)のステップ目標値を生成"""
-    initial_wait = STEP_CONFIG['initial_wait']
-    step_duration = STEP_CONFIG['step_duration']
-    amp = STEP_CONFIG['output_amplitude']
+def get_active_profile_name():
+    profile = REFERENCE_PROFILE.get('active_profile', 'step')
+    if profile not in REFERENCE_PROFILE or not isinstance(REFERENCE_PROFILE[profile], dict):
+        raise ValueError(f"未定義の目標プロファイル: {profile}")
+    return profile
 
+
+def get_profile_label():
+    label = REFERENCE_PROFILE.get('file_label')
+    if label:
+        return str(label)
+    return get_active_profile_name()
+
+
+def sanitize_label_for_filename(label):
+    safe = ''.join(ch if (ch.isalnum() or ch in ('-', '_')) else '_' for ch in label)
+    return safe or 'profile'
+
+
+def _compute_ramp_profile(cfg, elapsed_time):
+    initial_wait = float(cfg.get('initial_wait', 0.0))
+    start_value = float(cfg.get('start_value', 0.0))
+    end_value = float(cfg.get('end_value', start_value))
+    ramp_duration = max(float(cfg.get('ramp_duration', 0.0)), 1e-6)
+    hold_duration = max(float(cfg.get('hold_duration', 0.0)), 0.0)
+    return_duration = max(float(cfg.get('return_duration', 0.0)), 0.0)
+    repeat = bool(cfg.get('repeat', True))
+
+    cycle = ramp_duration + hold_duration + return_duration
     if elapsed_time < initial_wait:
-        return 0.0
+        return start_value, 0.0, cycle, repeat, ramp_duration
 
-    cyc = (elapsed_time - initial_wait) % (step_duration * 4)
-    if cyc < step_duration:
-        return +amp
+    def ramp_value(phase, repeat_mode):
+        if phase < ramp_duration:
+            ratio = phase / ramp_duration
+            return start_value + (end_value - start_value) * ratio
+        phase -= ramp_duration
+        if phase < hold_duration:
+            return end_value
+        phase -= hold_duration
+        if return_duration > 0.0:
+            ratio = min(max(phase / return_duration, 0.0), 1.0)
+            return end_value + (start_value - end_value) * ratio
+        return start_value if repeat_mode else end_value
+
+    t_after_wait = elapsed_time - initial_wait
+    if cycle <= 0.0:
+        return end_value, max(t_after_wait, 0.0), cycle, repeat, ramp_duration
+
+    if repeat:
+        phase = t_after_wait % cycle
+        value = ramp_value(phase, True)
     else:
-        return 0.0
+        if t_after_wait >= cycle:
+            final_value = start_value if return_duration > 0.0 else end_value
+            value = final_value
+        else:
+            value = ramp_value(t_after_wait, False)
+
+    return value, max(t_after_wait, 0.0), cycle, repeat, ramp_duration
+
+
+def generate_output_reference(elapsed_time):
+    """出力θの目標値をプロファイルに応じて生成"""
+    profile = get_active_profile_name()
+    cfg = REFERENCE_PROFILE[profile]
+
+    if profile == 'step':
+        initial_wait = cfg['initial_wait']
+        step_duration = cfg['step_duration']
+        amp = cfg['output_amplitude']
+        offset = cfg.get('offset', 0.0)
+
+        if elapsed_time < initial_wait:
+            return offset
+
+        period = step_duration * 4.0
+        if period <= 0.0:
+            return offset
+        cyc = (elapsed_time - initial_wait) % period
+        if cyc < step_duration:
+            return offset + amp
+        else:
+            return offset
+
+    if profile == 'sine':
+        initial_wait = cfg['initial_wait']
+        amp = cfg['output_amplitude']
+        freq = cfg['frequency_hz']
+        offset = cfg.get('offset', 0.0)
+        if elapsed_time < initial_wait:
+            return offset
+        t = elapsed_time - initial_wait
+        return offset + amp * math.sin(2.0 * math.pi * freq * t)
+
+    if profile == 'chirp':
+        initial_wait = cfg['initial_wait']
+        amp = cfg['output_amplitude']
+        f0 = cfg['start_frequency_hz']
+        f1 = cfg['end_frequency_hz']
+        duration = max(cfg['duration'], 1e-6)
+        offset = cfg.get('offset', 0.0)
+        if elapsed_time < initial_wait:
+            return offset
+        t = elapsed_time - initial_wait
+        k = (f1 - f0) / duration
+        if t > duration:
+            phase = 2.0 * math.pi * (f0 * duration + 0.5 * k * duration ** 2) + 2.0 * math.pi * f1 * (t - duration)
+        else:
+            phase = 2.0 * math.pi * (f0 * t + 0.5 * k * t ** 2)
+        return offset + amp * math.sin(phase)
+
+    if profile == 'ramp':
+        value, _, _, _, _ = _compute_ramp_profile(cfg, elapsed_time)
+        return value
+
+    if profile == 'ramp_step':
+        base_value, t_after_wait, cycle, repeat_ramp, ramp_duration = _compute_ramp_profile(cfg, elapsed_time)
+        step_cfg = cfg.get('step', {})
+        amplitude = float(step_cfg.get('amplitude', 0.0))
+        if amplitude == 0.0:
+            return base_value
+
+        align_to_ramp_end = bool(step_cfg.get('align_to_ramp_end', False))
+        start_after_base = max(float(step_cfg.get('start_after', 0.0)), 0.0)
+        start_after = start_after_base + (ramp_duration if align_to_ramp_end else 0.0)
+        duration = max(float(step_cfg.get('duration', 0.0)), 0.0)
+        repeat_step = bool(step_cfg.get('repeat', True))
+
+        if t_after_wait < start_after:
+            return base_value
+
+        elapsed_since_start = t_after_wait - start_after
+        step_active = False
+
+        if repeat_step:
+            period_default = cycle if (cycle > 0.0 and repeat_ramp) else duration if duration > 0.0 else 1.0
+            period = float(step_cfg.get('period', period_default))
+            if period <= 0.0:
+                period = max(period_default, 1e-6)
+            offset = float(step_cfg.get('offset_in_cycle', 0.0))
+            if align_to_ramp_end:
+                offset = (offset + ramp_duration) % period
+            phase = (elapsed_since_start - offset) % period
+            if duration <= 0.0:
+                step_active = phase < 1e-6
+            else:
+                step_active = phase < duration
+        else:
+            if duration <= 0.0:
+                step_active = elapsed_since_start >= 0.0 and elapsed_since_start < 1e-6
+            else:
+                step_active = 0.0 <= elapsed_since_start < duration
+
+        if step_active:
+            return base_value + amplitude
+        return base_value
+
+    raise ValueError(f"未対応の目標プロファイル: {profile}")
 
 # ==================================================================================
 # PID コントローラ（スレッドセーフ）
@@ -332,27 +526,34 @@ class PIDController:
 # 可視化/解析
 # ==================================================================================
 
-def analyze_and_plot_step_response(csv_filename):
-    print(f"ステップ応答解析を開始: {csv_filename}")
+def analyze_and_plot_response(csv_filename):
+    profile_label = get_profile_label()
+    print(f"応答解析を開始 ({profile_label}) : {csv_filename}")
     df = pd.read_csv(csv_filename)
 
 
     fig, axes = plt.subplots(4, 1, figsize=(12, 12))
-    fig.suptitle('Output Step Response (θ) and Torques')
+    fig.suptitle(f'Output Response (θ) and Torques - {profile_label}')
 
     t = df['time'].values
-    theta_ref = df['theta_ref'].values
-    theta = df['output_pos'].values
+    theta_ref_turn = df['theta_ref'].values
+    theta_turn = df['output_pos'].values
     tau_out_calc = df['tau_out'].values if 'tau_out' in df.columns else None
     tau0 = df['motor0_torque'].values
     tau1 = df['motor1_torque'].values
-    theta1 = df['motor0_pos'].values
-    theta2 = df['motor1_pos'].values
+    theta1_turn = df['motor0_pos'].values
+    theta2_turn = df['motor1_pos'].values
+
+    turn_to_deg = lambda arr: np.asarray(arr, dtype=float) * 360.0
+    theta_ref_deg = turn_to_deg(theta_ref_turn)
+    theta_deg = turn_to_deg(theta_turn)
+    theta1_deg = turn_to_deg(theta1_turn)
+    theta2_deg = turn_to_deg(theta2_turn)
 
     # θ
-    axes[0].plot(t, theta_ref, '--', label='θ_ref')
-    axes[0].plot(t, theta, '-', label='θ')
-    axes[0].set_ylabel('θ [turn]')
+    axes[0].plot(t, theta_ref_deg, '--', label='θ_ref')
+    axes[0].plot(t, theta_deg, '-', label='θ')
+    axes[0].set_ylabel('θ [deg]')
     axes[0].legend()
 
     # τ_out
@@ -371,10 +572,10 @@ def analyze_and_plot_step_response(csv_filename):
     axes[2].legend()
 
     # 内部姿勢 θ1, θ2
-    axes[3].plot(t, theta1, color='red', label='θ1')
-    axes[3].plot(t, theta2, color='green', label='θ2')
+    axes[3].plot(t, theta1_deg, color='red', label='θ1')
+    axes[3].plot(t, theta2_deg, color='green', label='θ2')
     axes[3].set_xlabel('Time [s]')
-    axes[3].set_ylabel('Joint [turn]')
+    axes[3].set_ylabel('Joint [deg]')
     axes[3].legend()
 
     # グリッド線なし、目盛り内向き
@@ -442,6 +643,7 @@ def analyze_and_plot_step_response(csv_filename):
 
 def main():
     print("=== トルク制御PID環境 - 最小ノルム配分 版 ===")
+    print(f"使用する応答プロファイル: {get_profile_label()} (type={get_active_profile_name()})")
 
     # ---- ODrive 接続 ----
     print("ODriveを検索中...")
@@ -536,7 +738,7 @@ def main():
             elapsed = t0 - start_time
 
             # ---- 目標 ----
-            theta_ref = generate_output_step(elapsed)
+            theta_ref = generate_output_reference(elapsed)
 
             # ---- 計測 ----
             q0 = odrv0.axis0.pos_vel_mapper.pos_rel - initial_position0
@@ -657,7 +859,8 @@ def main():
         # ---- CSV保存 ----
         os.makedirs(CSV_DIR, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        csv_filename = os.path.join(CSV_DIR, f"{DATA_FILENAME_PREFIX}_{timestamp}.csv")
+        profile_slug = sanitize_label_for_filename(get_profile_label())
+        csv_filename = os.path.join(CSV_DIR, f"{DATA_FILENAME_PREFIX}_{profile_slug}_{timestamp}.csv")
         with open(csv_filename, 'w', newline='') as f:
             w = csv.writer(f)
             w.writerow([
@@ -679,13 +882,13 @@ def main():
 
         # ---- 可視化 ----
         try:
-            print("\n=== ステップ応答解析とグラフ表示 ===")
-            final_graph_path, final_csv_path = analyze_and_plot_step_response(csv_filename)
+            print("\n=== 応答解析とグラフ表示 ===")
+            final_graph_path, final_csv_path = analyze_and_plot_response(csv_filename)
             print("\n=== 最終的なファイル状況 ===")
             print(f"CSV: {final_csv_path if final_csv_path else '削除済み'}")
             print(f"FIG: {final_graph_path if final_graph_path else '削除済み'}")
         except Exception as e:
-            print(f"ステップ応答解析エラー: {e}")
+            print(f"応答解析エラー: {e}")
             print("手動でCSVファイルを確認してください。")
         print("制御終了")
 

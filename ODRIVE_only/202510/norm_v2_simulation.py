@@ -351,14 +351,14 @@ class SimulationHarness:
         self.plant.set_ideal_mode(True)
         self.plant.set_first_order_tau(self.args.time_constant)
 
-        original_generate = control.generate_output_step
+        original_generate = control.generate_output_reference
 
         def generate_with_enforcement(elapsed_time: float) -> float:
             theta_ref = original_generate(elapsed_time)
             self.plant.enforce_output(theta_ref, elapsed_time)
             return theta_ref
 
-        control.generate_output_step = generate_with_enforcement
+        control.generate_output_reference = generate_with_enforcement  # type: ignore[assignment]
 
         choice_lookup = {"all": "1", "fig": "2", "csv": "3", "none": "4"}
         default_choice = choice_lookup[self.args.keep]

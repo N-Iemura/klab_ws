@@ -46,12 +46,12 @@ class FirstOrderLag:
 def main() -> None:
     tau = 0.05  # [s] 変更したい場合はここを書き換える
 
-    base_control.STEP_CONFIG = copy.deepcopy(base_control.STEP_CONFIG)
-    base_control.STEP_CONFIG["pattern"] = base_control.STEP_CONFIG.get("pattern", "step") + "+lag"
-    base_control.STEP_CONFIG["lag_tau"] = tau
+    base_control.REFERENCE_PROFILE = copy.deepcopy(base_control.REFERENCE_PROFILE)
+    base_control.REFERENCE_PROFILE["file_label"] = f"{base_control.get_profile_label()}+lag"
+    base_control.REFERENCE_PROFILE["lag_tau"] = tau
 
-    lagged_generator = FirstOrderLag(tau, base_control.generate_output_step)
-    base_control.generate_output_step = lagged_generator  # type: ignore[assignment]
+    lagged_generator = FirstOrderLag(tau, base_control.generate_output_reference)
+    base_control.generate_output_reference = lagged_generator  # type: ignore[assignment]
 
     print(f"=== 一次遅れ版 norm_v2 (tau = {tau:.3f} s 固定) ===")
     base_control.main()

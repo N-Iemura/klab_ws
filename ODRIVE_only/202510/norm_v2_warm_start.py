@@ -26,16 +26,12 @@ WARM_STEP_CONFIG = {
     "step_target": 0.05,       # ステップ目標角[turn]
 }
 
-# base_control の STEP_CONFIG を情報用に更新（解析時の参照など）
-base_control.STEP_CONFIG = copy.deepcopy(base_control.STEP_CONFIG)
-base_control.STEP_CONFIG.update(
-    {
-        "initial_wait": WARM_STEP_CONFIG["initial_wait"],
-        "output_amplitude": WARM_STEP_CONFIG["step_target"],
-        "pattern": "warm_start",
-        "preload_target": WARM_STEP_CONFIG["preload_target"],
-    }
-)
+# base_control のプロファイル設定を情報用に更新（解析時の参照など）
+base_control.REFERENCE_PROFILE = copy.deepcopy(base_control.REFERENCE_PROFILE)
+base_control.REFERENCE_PROFILE["file_label"] = "warm_start"
+base_control.REFERENCE_PROFILE["custom"] = {"description": "warm_start profile"}
+base_control.REFERENCE_PROFILE["active_profile"] = "custom"
+base_control.REFERENCE_PROFILE["warm_start_params"] = copy.deepcopy(WARM_STEP_CONFIG)
 
 
 def generate_warm_step(elapsed_time: float) -> float:
@@ -76,8 +72,8 @@ def generate_warm_step(elapsed_time: float) -> float:
     return 0.0
 
 
-# base_control のステップ生成関数を差し替え
-base_control.generate_output_step = generate_warm_step
+# base_control の目標生成関数を差し替え
+base_control.generate_output_reference = generate_warm_step  # type: ignore[assignment]
 
 
 if __name__ == "__main__":
